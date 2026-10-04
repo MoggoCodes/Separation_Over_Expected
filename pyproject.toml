@@ -1,0 +1,23 @@
+[project]
+name = "separation-over-expected"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Amogh Agarwal", email = "amoghagarwal2000@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+separation-over-expected = "separation_over_expected:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "jupytext>=1.19.5",
+    "kaggle>=2.2.4",
+]

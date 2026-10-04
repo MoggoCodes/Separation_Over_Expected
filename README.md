@@ -1,0 +1,75 @@
+# Separation Over Expected
+
+This project estimates how much separation a receiver creates compared with what an average NFL route runner would be expected to create in the same observable situation.
+
+The first estimand is route-level separation creation:
+
+```text
+delta_sep = separation_at_pass_release - separation_at_snap
+SOE_route = delta_sep_actual - E[delta_sep | route context at snap]
+```
+
+For the first version, "same situation" means the observable context available in the NFL Big Data Bowl 2023 data:
+
+- receiver alignment and official position
+- initial receiver location, speed, and acceleration
+- nearest coverage defender location and leverage at the snap
+- offensive formation, personnel, down, distance, field position, and play action
+- defensive personnel, coverage family, and man/zone label
+- time from snap to pass release
+
+This framing avoids claiming full receiver value. It asks a narrower question: given where the receiver started and how the defense was structured, did he create more or less separation before the quarterback released the ball than an average NFL route runner would have created?
+
+## Build the Route Table
+
+From the project directory:
+
+```bash
+uv run separation-over-expected build-route-table \
+  --data-dir ../data/big_data_bowl_2023 \
+  --output data/processed/route_level_snap_to_release.csv
+```
+
+The output contains one row per route runner on plays with both a snap event and a pass-forward event. It includes raw and normalized coordinates, nearest-defender separation at snap and release, and contextual fields for the expected-separation model.
+
+## Fit Baseline Models
+
+```bash
+uv run separation-over-expected fit-baselines \
+  --route-table data/processed/route_level_snap_to_release.csv \
+  --predictions data/processed/route_level_baseline_predictions.csv \
+  --receiver-summary data/processed/receiver_baseline_summary.csv \
+  --metrics data/processed/baseline_metrics.csv
+```
+
+The baseline target is `delta_sep`. The first split trains on weeks 1-6, validates on week 7, and tests on week 8.
+
+Current baselines:
+
+- `global_mean`: every route receives the training-set average `delta_sep`
+- `smoothed_group_mean`: shrinkage mean by official position, alignment, and man/zone coverage type
+- `ridge_context`: ridge regression using snap/release-time context, including initial separation, field location, defender leverage, receiver speed/acceleration, time to throw, formation, personnel, coverage, and alignment
+
+The first baseline run produced:
+
+| Model | Validation R2 | Test R2 | Test RMSE |
+|---|---:|---:|---:|
+| global_mean | -0.000 | -0.003 | 2.904 |
+| smoothed_group_mean | 0.044 | 0.045 | 2.834 |
+| ridge_context | 0.308 | 0.327 | 2.380 |
+
+`ridge_context` is the first working expected-separation model. Its route-level residual is the initial `SOE_route` score:
+
+```text
+SOE_route = delta_sep_actual - delta_sep_predicted
+```
+
+The receiver summary aggregates those route-level residuals. Treat that leaderboard as exploratory because the current model pools WR, TE, RB, and FB routes and does not yet estimate player uncertainty.
+
+## Project Structure
+
+- `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
+- `src/separation_over_expected/models.py`: reusable baseline models, data splits, predictions, and metrics
+- `src/separation_over_expected/reports.py`: CSV reading/writing and receiver-level summaries
+- `src/separation_over_expected/cli.py`: thin command-line wrapper around the reusable modules
+- `notebooks/01_baseline_journey.ipynb`: narrative notebook showing the data shape, target definition, baseline comparison, and first receiver summaries
