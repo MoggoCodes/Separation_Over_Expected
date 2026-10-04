@@ -96,6 +96,20 @@ lower_95_soe = mean_soe - 1.96 * standard_error(mean_soe)
 
 This keeps the leaderboard from overvaluing small samples with noisy high averages. The summary files also include `std_soe`, `se_soe`, and `upper_95_soe`.
 
+## Check Split-Half Stability
+
+The first validation check asks whether WR SOE in weeks 1-4 carries into weeks 5-8:
+
+```bash
+uv run separation-over-expected split-half-stability \
+  --predictions data/processed/position_baselines/route_level_baseline_predictions_wr.csv \
+  --output data/processed/stability/wr_split_half_stability.csv \
+  --position WR \
+  --min-routes-per-half 20
+```
+
+With at least 20 WR routes in each half, 107 receivers qualify. The early/late Pearson correlation is 0.420. That is meaningful signal for a first tracking-data metric, but it also leaves plenty of noise for future route-shape and defender-context improvements.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -104,3 +118,4 @@ This keeps the leaderboard from overvaluing small samples with noisy high averag
 - `src/separation_over_expected/cli.py`: thin command-line wrapper around the reusable modules
 - `notebooks/01_baseline_journey.ipynb`: narrative notebook showing the data shape, target definition, baseline comparison, and first receiver summaries
 - `notebooks/02_uncertainty_aware_wr_leaderboard.ipynb`: focused notebook for the uncertainty-aware WR leaderboard
+- `notebooks/03_wr_split_half_stability.ipynb`: validation notebook checking whether WR SOE persists from weeks 1-4 to weeks 5-8

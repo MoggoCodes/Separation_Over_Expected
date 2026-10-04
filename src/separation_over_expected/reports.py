@@ -110,6 +110,95 @@ def write_receiver_summary(
     )
 
 
+def split_half_stability_rows(
+    rows: list[dict[str, str]],
+    position: str | None = None,
+    early_weeks: set[int] | None = None,
+    late_weeks: set[int] | None = None,
+    min_routes_per_half: int = 20,
+) -> list[dict[str, str]]:
+    early_weeks = early_weeks or {1, 2, 3, 4}
+    late_weeks = late_weeks or {5, 6, 7, 8}
+    by_player: dict[tuple[str, str, str], dict[str, list[float]]] = defaultdict(
+        lambda: {"early": [], "late": []}
+    )
+
+    for row in rows:
+        if position is not None and row["officialPosition"] != position:
+            continue
+        week = int(row["week"])
+        split = "early" if week in early_weeks else "late" if week in late_weeks else None
+        if split is None:
+            continue
+        key = (row["nflId"], row["displayName"], row["officialPosition"])
+        by_player[key][split].append(float(row["soe_route"]))
+
+    summaries = []
+    for (nfl_id, name, official_position), values in by_player.items():
+        early = values["early"]
+        late = values["late"]
+        if len(early) < min_routes_per_half or len(late) < min_routes_per_half:
+            continue
+        early_mean = statistics.fmean(early)
+        late_mean = statistics.fmean(late)
+        summaries.append(
+            {
+                "nflId": nfl_id,
+                "displayName": name,
+                "officialPosition": official_position,
+                "early_routes": str(len(early)),
+                "late_routes": str(len(late)),
+                "early_mean_soe": f"{early_mean:.3f}",
+                "late_mean_soe": f"{late_mean:.3f}",
+                "late_minus_early": f"{late_mean - early_mean:.3f}",
+            }
+        )
+    summaries.sort(key=lambda row: float(row["early_mean_soe"]), reverse=True)
+    return summaries
+
+
+def write_split_half_stability(
+    path: Path,
+    rows: list[dict[str, str]],
+    position: str | None = None,
+    min_routes_per_half: int = 20,
+) -> None:
+    fieldnames = [
+        "nflId",
+        "displayName",
+        "officialPosition",
+        "early_routes",
+        "late_routes",
+        "early_mean_soe",
+        "late_mean_soe",
+        "late_minus_early",
+    ]
+    write_csv(
+        path,
+        fieldnames,
+        split_half_stability_rows(
+            rows,
+            position=position,
+            min_routes_per_half=min_routes_per_half,
+        ),
+    )
+
+
+def pearson_correlation(xs: list[float], ys: list[float]) -> float:
+    if len(xs) != len(ys):
+        raise ValueError("xs and ys must have the same length")
+    if len(xs) < 2:
+        return 0.0
+    x_mean = statistics.fmean(xs)
+    y_mean = statistics.fmean(ys)
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys))
+    x_denom = math.sqrt(sum((x - x_mean) ** 2 for x in xs))
+    y_denom = math.sqrt(sum((y - y_mean) ** 2 for y in ys))
+    if x_denom == 0.0 or y_denom == 0.0:
+        return 0.0
+    return numerator / (x_denom * y_denom)
+
+
 def dataset_overview(rows: list[dict[str, str]]) -> dict[str, object]:
     splits = split_rows(rows)
     return {

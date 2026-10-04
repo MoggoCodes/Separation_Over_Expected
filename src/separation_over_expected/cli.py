@@ -10,6 +10,7 @@ from .reports import (
     write_metrics,
     write_predictions,
     write_receiver_summary,
+    write_split_half_stability,
 )
 
 
@@ -113,6 +114,35 @@ def main() -> None:
         help="Minimum player routes required in each receiver summary.",
     )
 
+    stability = subparsers.add_parser(
+        "split-half-stability",
+        help="Create a player-level early/late SOE stability table.",
+    )
+    stability.add_argument(
+        "--predictions",
+        type=Path,
+        default=Path("data/processed/position_baselines/route_level_baseline_predictions_wr.csv"),
+        help="Route-level predictions CSV containing soe_route.",
+    )
+    stability.add_argument(
+        "--output",
+        type=Path,
+        default=Path("data/processed/stability/wr_split_half_stability.csv"),
+        help="Output CSV path for player-level split-half stability.",
+    )
+    stability.add_argument(
+        "--position",
+        choices=["WR", "TE", "RB", "FB"],
+        default="WR",
+        help="Official position to include.",
+    )
+    stability.add_argument(
+        "--min-routes-per-half",
+        type=int,
+        default=20,
+        help="Minimum routes required in weeks 1-4 and weeks 5-8.",
+    )
+
     args = parser.parse_args()
     if args.command == "build-route-table":
         build_route_table(args.data_dir, args.output, args.weeks)
@@ -132,6 +162,15 @@ def main() -> None:
             args.positions,
             args.min_routes,
         )
+    elif args.command == "split-half-stability":
+        rows = read_csv_rows(args.predictions)
+        write_split_half_stability(
+            args.output,
+            rows,
+            position=args.position,
+            min_routes_per_half=args.min_routes_per_half,
+        )
+        print(f"stability table: {args.output}")
 
 
 def fit_baselines(
