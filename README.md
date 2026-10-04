@@ -103,3 +103,4 @@ This keeps the leaderboard from overvaluing small samples with noisy high averag
 - `src/separation_over_expected/reports.py`: CSV reading/writing and receiver-level summaries
 - `src/separation_over_expected/cli.py`: thin command-line wrapper around the reusable modules
 - `notebooks/01_baseline_journey.ipynb`: narrative notebook showing the data shape, target definition, baseline comparison, and first receiver summaries
+- `notebooks/02_uncertainty_aware_wr_leaderboard.ipynb`: focused notebook for the uncertainty-aware WR leaderboard
