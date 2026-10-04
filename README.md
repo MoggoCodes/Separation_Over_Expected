@@ -110,6 +110,17 @@ uv run separation-over-expected split-half-stability \
 
 With at least 20 WR routes in each half, 107 receivers qualify. The early/late Pearson correlation is 0.420. That is meaningful signal for a first tracking-data metric, but it also leaves plenty of noise for future route-shape and defender-context improvements.
 
+## Coverage Context Experiment
+
+The `coverage-context-features` branch adds local defensive context at the snap: second/third defender distance, defender density, nearest DB/LB distance, and leverage features. The WR model's test performance is nearly unchanged:
+
+| WR Ridge Model | Test R2 | Test RMSE | Test MAE | Split-Half Corr |
+|---|---:|---:|---:|---:|
+| Baseline | 0.503 | 1.848 | 1.393 | 0.420 |
+| Coverage context | 0.503 | 1.848 | 1.388 | 0.406 |
+
+This simple defensive-context feature set does not materially improve the WR model. That suggests the next improvement needs route-shape or time-varying coverage-responsibility information rather than snap-only defender density.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -119,3 +130,4 @@ With at least 20 WR routes in each half, 107 receivers qualify. The early/late P
 - `notebooks/01_baseline_journey.ipynb`: narrative notebook showing the data shape, target definition, baseline comparison, and first receiver summaries
 - `notebooks/02_uncertainty_aware_wr_leaderboard.ipynb`: focused notebook for the uncertainty-aware WR leaderboard
 - `notebooks/03_wr_split_half_stability.ipynb`: validation notebook checking whether WR SOE persists from weeks 1-4 to weeks 5-8
+- `notebooks/04_coverage_context_features.ipynb`: experiment notebook showing that simple snap-level coverage context does not materially improve WR performance or stability

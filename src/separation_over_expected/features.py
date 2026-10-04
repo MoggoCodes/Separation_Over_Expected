@@ -57,6 +57,19 @@ ROUTE_TABLE_COLUMNS = [
     "nearest_defender_dy_snap",
     "nearest_defender_dx_release",
     "nearest_defender_dy_release",
+    "defender_1_dist_snap",
+    "defender_2_dist_snap",
+    "defender_3_dist_snap",
+    "defenders_within_3_snap",
+    "defenders_within_5_snap",
+    "defenders_within_10_snap",
+    "nearest_db_dist_snap",
+    "nearest_lb_dist_snap",
+    "nearest_defender_depth_leverage_snap",
+    "nearest_defender_width_leverage_snap",
+    "defender_depth_density_0_10_snap",
+    "defender_inside_count_5_snap",
+    "defender_outside_count_5_snap",
 ]
 
 
@@ -165,6 +178,14 @@ def make_route_row(
         float(release_nearest["position"]["y"]),
         play_direction,
     )
+    snap_context = coverage_context(
+        receiver=snap,
+        receiver_norm=snap_norm,
+        positions=snap_positions,
+        defender_ids=coverage_ids,
+        players=players,
+        play_direction=play_direction,
+    )
     player = players.get(rid, {})
     return {
         "gameId": key[0],
@@ -215,6 +236,7 @@ def make_route_row(
         "nearest_defender_dy_snap": fmt(snap_def_norm[1] - snap_norm[1]),
         "nearest_defender_dx_release": fmt(release_def_norm[0] - release_norm[0]),
         "nearest_defender_dy_release": fmt(release_def_norm[1] - release_norm[1]),
+        **snap_context,
     }
 
 
@@ -321,6 +343,76 @@ def nearest_defender(
                 "position": defender,
             }
     return nearest
+
+
+def coverage_context(
+    receiver: dict[str, float | str],
+    receiver_norm: tuple[float, float],
+    positions: dict[str, dict[str, float | str]],
+    defender_ids: set[str],
+    players: dict[str, dict[str, str]],
+    play_direction: str,
+) -> dict[str, str]:
+    rx = float(receiver["x"])
+    ry = float(receiver["y"])
+    defender_rows = []
+    for defender_id in defender_ids:
+        defender = positions.get(defender_id)
+        if defender is None:
+            continue
+        defender_norm = normalize_xy(
+            float(defender["x"]),
+            float(defender["y"]),
+            play_direction,
+        )
+        dx = defender_norm[0] - receiver_norm[0]
+        dy = defender_norm[1] - receiver_norm[1]
+        distance = math.dist((rx, ry), (float(defender["x"]), float(defender["y"])))
+        official_position = players.get(defender_id, {}).get("officialPosition", "")
+        defender_rows.append(
+            {
+                "nflId": defender_id,
+                "distance": distance,
+                "dx": dx,
+                "dy": dy,
+                "officialPosition": official_position,
+            }
+        )
+    defender_rows.sort(key=lambda row: row["distance"])
+
+    nearest = defender_rows[0] if defender_rows else {"distance": 0.0, "dx": 0.0, "dy": 0.0}
+    distance_at = lambda idx: defender_rows[idx]["distance"] if len(defender_rows) > idx else 0.0
+    nearest_db = nearest_position_group_distance(defender_rows, {"CB", "DB", "FS", "SS"})
+    nearest_lb = nearest_position_group_distance(defender_rows, {"LB", "ILB", "MLB", "OLB"})
+    close_rows = [row for row in defender_rows if row["distance"] <= 5.0]
+
+    return {
+        "defender_1_dist_snap": fmt(distance_at(0)),
+        "defender_2_dist_snap": fmt(distance_at(1)),
+        "defender_3_dist_snap": fmt(distance_at(2)),
+        "defenders_within_3_snap": str(sum(row["distance"] <= 3.0 for row in defender_rows)),
+        "defenders_within_5_snap": str(len(close_rows)),
+        "defenders_within_10_snap": str(sum(row["distance"] <= 10.0 for row in defender_rows)),
+        "nearest_db_dist_snap": fmt(nearest_db),
+        "nearest_lb_dist_snap": fmt(nearest_lb),
+        "nearest_defender_depth_leverage_snap": fmt(float(nearest["dx"])),
+        "nearest_defender_width_leverage_snap": fmt(float(nearest["dy"])),
+        "defender_depth_density_0_10_snap": str(
+            sum(0.0 <= row["dx"] <= 10.0 for row in defender_rows)
+        ),
+        "defender_inside_count_5_snap": str(sum(row["dy"] < 0 for row in close_rows)),
+        "defender_outside_count_5_snap": str(sum(row["dy"] > 0 for row in close_rows)),
+    }
+
+
+def nearest_position_group_distance(
+    defender_rows: list[dict[str, object]],
+    positions: set[str],
+) -> float:
+    for row in defender_rows:
+        if str(row["officialPosition"]) in positions:
+            return float(row["distance"])
+    return 0.0
 
 
 def frame_play_direction(positions: dict[str, dict[str, float | str]]) -> str:

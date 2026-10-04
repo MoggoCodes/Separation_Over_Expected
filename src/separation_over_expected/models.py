@@ -149,6 +149,18 @@ class RidgeContextModel:
         "absoluteYardlineNumber",
         "defendersInBox",
         "pff_playAction",
+        "defender_2_dist_snap",
+        "defender_3_dist_snap",
+        "defenders_within_3_snap",
+        "defenders_within_5_snap",
+        "defenders_within_10_snap",
+        "nearest_db_dist_snap",
+        "nearest_lb_dist_snap",
+        "nearest_defender_depth_leverage_snap",
+        "nearest_defender_width_leverage_snap",
+        "defender_depth_density_0_10_snap",
+        "defender_inside_count_5_snap",
+        "defender_outside_count_5_snap",
     ]
     categorical_features = [
         "officialPosition",
