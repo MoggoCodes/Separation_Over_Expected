@@ -66,6 +66,28 @@ SOE_route = delta_sep_actual - delta_sep_predicted
 
 The receiver summary aggregates those route-level residuals. Treat that leaderboard as exploratory because the current model pools WR, TE, RB, and FB routes and does not yet estimate player uncertainty.
 
+## Fit Position-Specific Baselines
+
+The pooled model is useful for diagnostics, but WR, TE, and RB routes represent different football jobs. Position-specific baselines fit separate expected-separation models within each position group:
+
+```bash
+uv run separation-over-expected fit-position-baselines \
+  --route-table data/processed/route_level_snap_to_release.csv \
+  --output-dir data/processed/position_baselines \
+  --positions WR TE RB
+```
+
+Current test-set results:
+
+| Position | Ridge Test R2 | Ridge Test RMSE | Test Rows |
+|---|---:|---:|---:|
+| All | 0.327 | 2.380 | 4,252 |
+| WR | 0.503 | 1.848 | 2,474 |
+| TE | 0.283 | 2.431 | 1,002 |
+| RB | 0.151 | 3.414 | 745 |
+
+The WR-specific model is the cleanest first project surface. It compares wide receivers to other wide receivers instead of mixing route jobs across positions.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files

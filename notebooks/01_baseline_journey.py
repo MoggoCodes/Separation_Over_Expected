@@ -39,7 +39,7 @@ SRC = PROJECT_ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from separation_over_expected.models import evaluate_models, fit_models, split_rows
+from separation_over_expected.models import evaluate_models, filter_rows, fit_models, split_rows
 from separation_over_expected.reports import dataset_overview, read_csv_rows, receiver_summary_rows
 
 ROUTE_TABLE = PROJECT_ROOT / "data" / "processed" / "route_level_snap_to_release.csv"
@@ -135,12 +135,42 @@ wr_summary = receiver_summary_rows(rows, scoring_model, min_routes=50, position=
 wr_summary[:20]
 
 # %% [markdown]
+# ## Position-Specific Baselines
+#
+# The pooled model is useful as a diagnostic, but route runners do different jobs by position. A cleaner comparison asks how a wide receiver performs relative to other wide receivers, how a tight end performs relative to other tight ends, and how a running back performs relative to other running backs.
+
+# %%
+position_metrics = {}
+position_summaries = {}
+
+for position in ["WR", "TE", "RB"]:
+    position_rows = filter_rows(rows, position=position)
+    position_splits = split_rows(position_rows)
+    position_models = fit_models(position_splits["train"])
+    position_metrics[position] = evaluate_models(position_models, position_splits)
+    position_scoring_model = next(model for model in position_models if model.name == "ridge_context")
+    position_summaries[position] = receiver_summary_rows(
+        position_rows,
+        position_scoring_model,
+        min_routes=50,
+        position=position,
+    )
+
+for position, metric_rows in position_metrics.items():
+    test_rows = [row for row in metric_rows if row["split"] == "test"]
+    print(position)
+    for row in test_rows:
+        print(f"  {row['model']:>20}  R2={row['r2']}  RMSE={row['rmse']}  MAE={row['mae']}")
+
+# %%
+position_summaries["WR"][:15]
+
+# %% [markdown]
 # ## Next Questions
 #
 # The baseline is good enough to move from feasibility into research. The next useful improvements are:
 #
-# 1. Fit and report position-specific models for WR, TE, and RB.
-# 2. Add uncertainty intervals for receiver summaries so small samples do not masquerade as signal.
-# 3. Replace nearest defender with a coverage-aware assignment or weighted defender distance.
-# 4. Cluster route shapes using the normalized snap-to-release movement features.
-# 5. Validate whether early-season SOE predicts later-season separation or receiving outcomes.
+# 1. Add uncertainty intervals for receiver summaries so small samples do not masquerade as signal.
+# 2. Replace nearest defender with a coverage-aware assignment or weighted defender distance.
+# 3. Cluster route shapes using the normalized snap-to-release movement features.
+# 4. Validate whether early-season SOE predicts later-season separation or receiving outcomes.

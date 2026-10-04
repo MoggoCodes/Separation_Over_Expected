@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from .features import build_route_table
-from .models import evaluate_models, fit_models, split_rows
+from .models import evaluate_models, filter_rows, fit_models, split_rows
 from .reports import (
     read_csv_rows,
     write_metrics,
@@ -71,6 +71,47 @@ def main() -> None:
         default=Path("data/processed/baseline_metrics.csv"),
         help="Output CSV with split-level model metrics.",
     )
+    baseline.add_argument(
+        "--position",
+        choices=["WR", "TE", "RB", "FB"],
+        help="Optional official position filter for model fitting and scoring.",
+    )
+    baseline.add_argument(
+        "--min-routes",
+        type=int,
+        default=25,
+        help="Minimum player routes required in the receiver summary.",
+    )
+
+    position_baselines = subparsers.add_parser(
+        "fit-position-baselines",
+        help="Fit pooled and position-specific baseline models for WR, TE, and RB.",
+    )
+    position_baselines.add_argument(
+        "--route-table",
+        type=Path,
+        default=Path("data/processed/route_level_snap_to_release.csv"),
+        help="Route-level CSV created by build-route-table.",
+    )
+    position_baselines.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/processed/position_baselines"),
+        help="Directory for position-specific predictions, summaries, and metrics.",
+    )
+    position_baselines.add_argument(
+        "--positions",
+        nargs="*",
+        choices=["WR", "TE", "RB", "FB"],
+        default=["WR", "TE", "RB"],
+        help="Official positions to model separately.",
+    )
+    position_baselines.add_argument(
+        "--min-routes",
+        type=int,
+        default=25,
+        help="Minimum player routes required in each receiver summary.",
+    )
 
     args = parser.parse_args()
     if args.command == "build-route-table":
@@ -81,6 +122,15 @@ def main() -> None:
             args.predictions,
             args.receiver_summary,
             args.metrics,
+            args.position,
+            args.min_routes,
+        )
+    elif args.command == "fit-position-baselines":
+        fit_position_baselines(
+            args.route_table,
+            args.output_dir,
+            args.positions,
+            args.min_routes,
         )
 
 
@@ -89,8 +139,13 @@ def fit_baselines(
     predictions_path: Path,
     receiver_summary_path: Path,
     metrics_path: Path,
+    position: str | None = None,
+    min_routes: int = 25,
 ) -> None:
     rows = read_csv_rows(route_table)
+    rows = filter_rows(rows, position=position)
+    if not rows:
+        raise ValueError(f"No route rows available for position={position!r}")
     splits = split_rows(rows)
     models = fit_models(splits["train"])
     metrics_rows = evaluate_models(models, splits)
@@ -98,9 +153,16 @@ def fit_baselines(
 
     write_metrics(metrics_path, metrics_rows)
     write_predictions(predictions_path, rows, models, scoring_model)
-    write_receiver_summary(receiver_summary_path, rows, scoring_model)
+    write_receiver_summary(
+        receiver_summary_path,
+        rows,
+        scoring_model,
+        min_routes=min_routes,
+        position=position,
+    )
 
-    print("baseline metrics")
+    label = position or "ALL"
+    print(f"baseline metrics ({label})")
     for row in metrics_rows:
         if row["split"] in {"validation", "test"}:
             print(
@@ -110,3 +172,30 @@ def fit_baselines(
     print(f"predictions: {predictions_path}")
     print(f"receiver summary: {receiver_summary_path}")
     print(f"metrics: {metrics_path}")
+
+
+def fit_position_baselines(
+    route_table: Path,
+    output_dir: Path,
+    positions: list[str],
+    min_routes: int,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    fit_baselines(
+        route_table,
+        output_dir / "route_level_baseline_predictions_all.csv",
+        output_dir / "receiver_baseline_summary_all.csv",
+        output_dir / "baseline_metrics_all.csv",
+        position=None,
+        min_routes=min_routes,
+    )
+    for position in positions:
+        suffix = position.lower()
+        fit_baselines(
+            route_table,
+            output_dir / f"route_level_baseline_predictions_{suffix}.csv",
+            output_dir / f"receiver_baseline_summary_{suffix}.csv",
+            output_dir / f"baseline_metrics_{suffix}.csv",
+            position=position,
+            min_routes=min_routes,
+        )

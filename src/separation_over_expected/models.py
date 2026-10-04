@@ -28,6 +28,25 @@ def split_rows(rows: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
     }
 
 
+def filter_rows(
+    rows: list[dict[str, str]],
+    position: str | None = None,
+    min_week: int | None = None,
+    max_week: int | None = None,
+) -> list[dict[str, str]]:
+    filtered = []
+    for row in rows:
+        week = int(row["week"])
+        if position is not None and row["officialPosition"] != position:
+            continue
+        if min_week is not None and week < min_week:
+            continue
+        if max_week is not None and week > max_week:
+            continue
+        filtered.append(row)
+    return filtered
+
+
 def default_baseline_models() -> list[object]:
     return [
         GlobalMeanModel(),
