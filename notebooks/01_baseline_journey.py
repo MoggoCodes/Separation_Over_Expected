@@ -120,7 +120,13 @@ for row in metrics:
 # %% [markdown]
 # ## First Receiver-Level View
 #
-# For the first leaderboard, `SOE_route` is the residual from the ridge context model. This should be treated as exploratory. It does not yet include player uncertainty, position-specific models, route clusters, or coverage-responsibility modeling.
+# For the first leaderboard, `SOE_route` is the residual from the ridge context model. The summary includes uncertainty columns:
+#
+# - `std_soe`: route-level standard deviation of SOE
+# - `se_soe`: standard error of the player mean
+# - `lower_95_soe` and `upper_95_soe`: approximate 95% confidence interval for mean SOE
+#
+# The table is sorted by `lower_95_soe`, which favors players with both strong average SOE and enough sample size to make that average more reliable.
 
 # %%
 scoring_model = next(model for model in models if model.name == "ridge_context")
@@ -133,6 +139,9 @@ overall[:15]
 # %%
 wr_summary = receiver_summary_rows(rows, scoring_model, min_routes=50, position="WR")
 wr_summary[:20]
+
+# %%
+sorted(wr_summary, key=lambda row: float(row["mean_soe"]), reverse=True)[:10]
 
 # %% [markdown]
 # ## Position-Specific Baselines
@@ -164,6 +173,9 @@ for position, metric_rows in position_metrics.items():
 
 # %%
 position_summaries["WR"][:15]
+
+# %% [markdown]
+# The uncertainty-aware WR leaderboard is more conservative than a raw average leaderboard. That matters because a 30-route sample can produce a flashy mean by chance, while a 150-route sample is harder to fake.
 
 # %% [markdown]
 # ## Next Questions

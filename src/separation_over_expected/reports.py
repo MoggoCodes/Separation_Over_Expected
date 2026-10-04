@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -71,10 +72,14 @@ def receiver_summary_rows(
                 "routes": str(len(values)),
                 "mean_soe": f"{statistics.fmean(values):.3f}",
                 "median_soe": f"{statistics.median(values):.3f}",
+                "std_soe": f"{sample_stdev(values):.3f}",
+                "se_soe": f"{standard_error(values):.3f}",
+                "lower_95_soe": f"{confidence_interval(values)[0]:.3f}",
+                "upper_95_soe": f"{confidence_interval(values)[1]:.3f}",
                 "total_soe": f"{sum(values):.3f}",
             }
         )
-    summaries.sort(key=lambda row: float(row["mean_soe"]), reverse=True)
+    summaries.sort(key=lambda row: float(row["lower_95_soe"]), reverse=True)
     return summaries
 
 
@@ -92,6 +97,10 @@ def write_receiver_summary(
         "routes",
         "mean_soe",
         "median_soe",
+        "std_soe",
+        "se_soe",
+        "lower_95_soe",
+        "upper_95_soe",
         "total_soe",
     ]
     write_csv(
@@ -110,6 +119,26 @@ def dataset_overview(rows: list[dict[str, str]]) -> dict[str, object]:
         "weeks": sorted({int(row["week"]) for row in rows}),
         "split_rows": {name: len(split) for name, split in splits.items()},
     }
+
+
+def sample_stdev(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    return statistics.stdev(values)
+
+
+def standard_error(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return sample_stdev(values) / math.sqrt(len(values))
+
+
+def confidence_interval(values: list[float], z: float = 1.96) -> tuple[float, float]:
+    if not values:
+        return (0.0, 0.0)
+    mean = statistics.fmean(values)
+    margin = z * standard_error(values)
+    return mean - margin, mean + margin
 
 
 def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:

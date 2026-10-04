@@ -88,6 +88,14 @@ Current test-set results:
 
 The WR-specific model is the cleanest first project surface. It compares wide receivers to other wide receivers instead of mixing route jobs across positions.
 
+Receiver summaries are sorted by `lower_95_soe`, an uncertainty-aware score:
+
+```text
+lower_95_soe = mean_soe - 1.96 * standard_error(mean_soe)
+```
+
+This keeps the leaderboard from overvaluing small samples with noisy high averages. The summary files also include `std_soe`, `se_soe`, and `upper_95_soe`.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
