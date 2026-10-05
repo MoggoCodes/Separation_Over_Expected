@@ -33,3 +33,12 @@ POCKET_CONTEXT_FEATURES = (
     "qb_pressure_observed_fraction_pre_release",
     "pff_pass_rusher_count",
 )
+
+PRESSURE_CONTEXT_FEATURES = (
+    "qb_nearest_rusher_dist_snap",
+    "qb_nearest_rusher_min_dist_pre_release",
+    "qb_nearest_rusher_mean_dist_pre_release",
+    "qb_rusher_closing_rate_pre_release",
+    "qb_rusher_within_3yd_frame_share_pre_release",
+    "qb_rusher_within_5yd_frame_share_pre_release",
+)

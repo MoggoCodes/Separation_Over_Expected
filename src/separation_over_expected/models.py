@@ -5,7 +5,11 @@ import random
 import statistics
 from collections import defaultdict
 
-from .feature_schema import DYNAMIC_CONTEXT_FEATURES, POCKET_CONTEXT_FEATURES
+from .feature_schema import (
+    DYNAMIC_CONTEXT_FEATURES,
+    POCKET_CONTEXT_FEATURES,
+    PRESSURE_CONTEXT_FEATURES,
+)
 from .utils import parse_float
 
 
@@ -371,6 +375,14 @@ class RidgePocketContextModel(RidgeDynamicContextModel):
     numeric_features = [
         *RidgeDynamicContextModel.numeric_features,
         *POCKET_CONTEXT_FEATURES,
+    ]
+
+
+class RidgePressureContextModel(RidgeDynamicContextModel):
+    name = "ridge_pressure_context"
+    numeric_features = [
+        *RidgeDynamicContextModel.numeric_features,
+        *PRESSURE_CONTEXT_FEATURES,
     ]
 
 
