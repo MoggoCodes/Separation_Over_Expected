@@ -9,6 +9,7 @@ from .feature_schema import (
     DYNAMIC_CONTEXT_FEATURES,
     POCKET_CONTEXT_FEATURES,
     PRESSURE_CONTEXT_FEATURES,
+    ROUTE_GEOMETRY_FEATURES,
 )
 from .utils import parse_float
 
@@ -383,6 +384,14 @@ class RidgePressureContextModel(RidgeDynamicContextModel):
     numeric_features = [
         *RidgeDynamicContextModel.numeric_features,
         *PRESSURE_CONTEXT_FEATURES,
+    ]
+
+
+class RidgeRouteGeometryModel(RidgeDynamicContextModel):
+    name = "ridge_dynamic_geometry_context"
+    numeric_features = [
+        *RidgeDynamicContextModel.numeric_features,
+        *ROUTE_GEOMETRY_FEATURES,
     ]
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .features import build_route_table
 from .models import evaluate_models, filter_rows, fit_models, split_rows
+from .route_clustering import identify_route_families, write_route_family_outputs
 from .reports import (
     read_csv_rows,
     write_metrics,
@@ -53,6 +54,11 @@ def main() -> None:
         "--include-pocket-features",
         action="store_true",
         help="Also add quarterback movement and PFF pass-rush pressure summaries before release.",
+    )
+    build.add_argument(
+        "--include-route-geometry",
+        action="store_true",
+        help="Add receiver route-shape summaries and resampled path coordinates through release.",
     )
 
     baseline = subparsers.add_parser(
@@ -197,6 +203,30 @@ def main() -> None:
         action="store_true",
         help="Fit an additional ridge model using pass-rusher proximity and closing features only.",
     )
+    cross_validation.add_argument(
+        "--include-route-geometry",
+        action="store_true",
+        help="Fit an additional ridge model with receiver route geometry features.",
+    )
+
+    route_families = subparsers.add_parser(
+        "identify-route-families",
+        help="Cluster field-normalized WR trajectory shapes for inspection and visualization.",
+    )
+    route_families.add_argument(
+        "--route-table",
+        type=Path,
+        default=Path("data/processed/dynamic_features/route_geometry/route_level_snap_to_release_geometry.csv"),
+    )
+    route_families.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/processed/dynamic_features/route_geometry/clusters"),
+    )
+    route_families.add_argument("--position", choices=["WR", "TE", "RB", "FB"], default="WR")
+    route_families.add_argument("--min-clusters", type=int, default=3)
+    route_families.add_argument("--max-clusters", type=int, default=10)
+    route_families.add_argument("--seed", type=int, default=42)
 
     args = parser.parse_args()
     if args.command == "build-route-table":
@@ -206,6 +236,7 @@ def main() -> None:
             args.weeks,
             include_dynamic_features=args.include_dynamic_features,
             include_pocket_features=args.include_pocket_features,
+            include_route_geometry=args.include_route_geometry,
         )
     elif args.command == "fit-baselines":
         fit_baselines(
@@ -254,6 +285,7 @@ def main() -> None:
             bootstrap_samples=args.bootstrap_samples,
             include_pocket_context=args.include_pocket_features,
             include_pressure_context=args.include_pressure_context,
+            include_route_geometry=args.include_route_geometry,
         )
         write_oof_outputs(
             args.output_dir,
@@ -266,6 +298,20 @@ def main() -> None:
         print(f"out-of-fold routes: {len(predictions):,}")
         print(f"metrics: {args.output_dir / f'oof_metrics_{args.position.lower()}.csv'}")
         print(f"receiver reliability: {args.output_dir / f'receiver_oof_reliability_{args.position.lower()}.csv'}")
+    elif args.command == "identify-route-families":
+        rows = read_csv_rows(args.route_table)
+        assignments, metrics, summaries = identify_route_families(
+            rows,
+            position=args.position,
+            min_clusters=args.min_clusters,
+            max_clusters=args.max_clusters,
+            seed=args.seed,
+        )
+        write_route_family_outputs(
+            args.output_dir, args.position, assignments, metrics, summaries
+        )
+        print(f"clustered routes: {len(assignments):,}")
+        print(f"cluster diagnostics: {args.output_dir / f'route_family_metrics_{args.position.lower()}.csv'}")
 
 
 def fit_baselines(

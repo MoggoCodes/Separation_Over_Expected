@@ -251,6 +251,32 @@ Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² o
 
 `notebooks/10_pressure_only_features.ipynb` documents the feature subset, fold metrics, and receiver reliability comparison.
 
+## Route Geometry and Identification
+
+The geometry experiment summarizes each route runner's field-direction-normalized trajectory from snap through pass release, inclusive. It is retrospective: the model conditions on the realized route path and is not a snap-time forecast. The table adds ten continuous geometric summaries and 11 start-relative points sampled at equal fractions of route time. Build and evaluate it with:
+
+```bash
+uv run separation-over-expected build-route-table \
+  --data-dir ../data/big_data_bowl_2023 \
+  --output data/processed/dynamic_features/route_geometry/route_level_snap_to_release_geometry.csv \
+  --include-route-geometry
+
+uv run separation-over-expected cross-validate-position \
+  --route-table data/processed/dynamic_features/route_geometry/route_level_snap_to_release_geometry.csv \
+  --output-dir data/processed/dynamic_features/route_geometry/cross_validation \
+  --position WR --folds 5 --seed 42 --min-routes-per-half 20 \
+  --bootstrap-samples 2000 --include-route-geometry
+
+uv run separation-over-expected identify-route-families \
+  --route-table data/processed/dynamic_features/route_geometry/route_level_snap_to_release_geometry.csv \
+  --output-dir data/processed/dynamic_features/route_geometry/clusters \
+  --position WR --min-clusters 3 --max-clusters 10 --seed 42
+```
+
+Across 20,415 OOF WR routes, adding geometry to dynamic context lowers RMSE from 1.869 to 1.749 and raises R² from 0.508 to 0.569, with lower RMSE in all five game folds. Receiver split-half Pearson reliability falls from 0.452 to 0.262; the paired difference is -0.190 (95% bootstrap interval -0.315 to 0.037), which includes zero. Because the features use the full observed route through release, better route prediction does not mean a better prospective forecast or more stable player score. Keep this as an experimental, realized-route-adjusted score.
+
+PFF identifies route runners but supplies no canonical route names. The separate visualization workflow clusters 11-point path curves; on this dataset, k=4 has the best mean silhouette (0.409) but only moderate mean pairwise ARI stability (0.604), with highly imbalanced cluster sizes. These IDs are exploratory movement groups, not named NFL route types, and are not model predictors. `notebooks/11_route_geometry_and_identification.ipynb` shows feature checks, OOF results, cluster diagnostics, and representative paths.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -267,3 +293,4 @@ Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² o
 - `notebooks/08_game_grouped_oof_receiver_reliability.ipynb`: five-fold game-grouped out-of-fold predictions and receiver SOE stability
 - `notebooks/09_pre_release_pocket_context.ipynb`: pre-release QB/pocket feature experiment and its route- and receiver-level results
 - `notebooks/10_pressure_only_features.ipynb`: pressure-only feature subset compared with dynamic and broad pocket context
+- `notebooks/11_route_geometry_and_identification.ipynb`: realized route geometry model and visualization-only route-family clusters

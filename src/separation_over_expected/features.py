@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 import statistics
 from collections import defaultdict
@@ -11,6 +12,8 @@ from .feature_schema import (
     DYNAMIC_DEFENDER_RANKS,
     DYNAMIC_DEFENDER_SUMMARIES,
     POCKET_CONTEXT_FEATURES,
+    ROUTE_GEOMETRY_FEATURES,
+    ROUTE_SHAPE_COLUMN,
 )
 from .utils import fmt, normalize_xy, parse_float
 
@@ -86,6 +89,7 @@ def build_route_table(
     weeks: list[int],
     include_dynamic_features: bool = False,
     include_pocket_features: bool = False,
+    include_route_geometry: bool = False,
 ) -> None:
     plays = read_plays(data_dir / "plays.csv")
     players = read_players(data_dir / "players.csv")
@@ -96,10 +100,16 @@ def build_route_table(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     total_rows = 0
     total_plays = 0
-    use_dynamic_tracking = include_dynamic_features or include_pocket_features
+    use_dynamic_tracking = (
+        include_dynamic_features or include_pocket_features or include_route_geometry
+    )
     columns = ROUTE_TABLE_COLUMNS + (
         list(DYNAMIC_CONTEXT_FEATURES) if use_dynamic_tracking else []
-    ) + (list(POCKET_CONTEXT_FEATURES) if include_pocket_features else [])
+    ) + (list(POCKET_CONTEXT_FEATURES) if include_pocket_features else []) + (
+        [*ROUTE_GEOMETRY_FEATURES, ROUTE_SHAPE_COLUMN]
+        if include_route_geometry
+        else []
+    )
     with output_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
@@ -164,6 +174,7 @@ def build_route_table(
                             passer_ids=passer_by_play.get(key, set()),
                             rusher_ids=rushers_by_play.get(key, set()),
                             include_pocket_features=include_pocket_features,
+                            include_route_geometry=include_route_geometry,
                         )
                         if row is None:
                             continue
@@ -199,6 +210,8 @@ def build_route_table(
                             snap_positions=snap_positions,
                             release_positions=release_positions,
                             play_direction=play_direction,
+                            dynamic_trajectory=None,
+                            include_route_geometry=include_route_geometry,
                         )
                         if row is None:
                             continue
@@ -230,6 +243,7 @@ def make_route_row(
     passer_ids: set[str] | None = None,
     rusher_ids: set[str] | None = None,
     include_pocket_features: bool = False,
+    include_route_geometry: bool = False,
 ) -> dict[str, str] | None:
     rid = route["nflId"]
     if rid not in snap_positions or rid not in release_positions:
@@ -335,6 +349,16 @@ def make_route_row(
                 snap_positions=snap_positions,
                 passer_ids=passer_ids or set(),
                 rusher_ids=rusher_ids or set(),
+                play_direction=play_direction,
+            )
+        )
+    if include_route_geometry and dynamic_trajectory is not None:
+        row.update(
+            route_geometry_features(
+                trajectory=dynamic_trajectory,
+                receiver_id=rid,
+                snap_frame=snap_frame,
+                release_frame=release_frame,
                 play_direction=play_direction,
             )
         )
@@ -488,6 +512,113 @@ def dynamic_defender_features(
                 f"{prefix}total_turn_degrees_pre_release": fmt(turn_degrees),
             }
         )
+    return output
+
+
+def resample_route_xy(
+    points: list[tuple[float, tuple[float, float]]], n_points: int = 11
+) -> list[tuple[float, float]]:
+    """Interpolate a time-ordered route to a fixed number of equal-time points."""
+    if n_points < 2:
+        raise ValueError("n_points must be at least 2")
+    if not points:
+        return []
+    ordered = sorted(points, key=lambda item: item[0])
+    if len(ordered) == 1 or ordered[0][0] == ordered[-1][0]:
+        return [ordered[0][1]] * n_points
+    output = []
+    left_index = 0
+    start, end = ordered[0][0], ordered[-1][0]
+    for step in range(n_points):
+        target = start + (end - start) * step / (n_points - 1)
+        while left_index < len(ordered) - 2 and ordered[left_index + 1][0] < target:
+            left_index += 1
+        left_t, left_xy = ordered[left_index]
+        right_t, right_xy = ordered[min(left_index + 1, len(ordered) - 1)]
+        if right_t == left_t:
+            output.append(left_xy)
+        else:
+            fraction = (target - left_t) / (right_t - left_t)
+            output.append(
+                (
+                    left_xy[0] + fraction * (right_xy[0] - left_xy[0]),
+                    left_xy[1] + fraction * (right_xy[1] - left_xy[1]),
+                )
+            )
+    return output
+
+
+def route_geometry_features(
+    trajectory: dict[int, dict[str, dict[str, float | str]]],
+    receiver_id: str,
+    snap_frame: int,
+    release_frame: int,
+    play_direction: str,
+) -> dict[str, str]:
+    """Describe the observed, field-normalized receiver path through release."""
+    blank = {feature: "" for feature in ROUTE_GEOMETRY_FEATURES}
+    blank[ROUTE_SHAPE_COLUMN] = ""
+    samples = []
+    for frame in sorted(trajectory):
+        if not snap_frame <= frame <= release_frame:
+            continue
+        position = trajectory[frame].get(receiver_id)
+        if position is None:
+            continue
+        xy = normalize_xy(float(position["x"]), float(position["y"]), play_direction)
+        samples.append((float(frame), xy))
+    if len(samples) < 2:
+        return blank
+
+    start_x, start_y = samples[0][1]
+    relative = [(frame, (x - start_x, y - start_y)) for frame, (x, y) in samples]
+    coords = [xy for _, xy in relative]
+    segment_vectors = [
+        (right[0] - left[0], right[1] - left[1])
+        for left, right in zip(coords, coords[1:])
+    ]
+    path_length = sum(math.hypot(dx, dy) for dx, dy in segment_vectors)
+    end_x, end_y = coords[-1]
+    chord_length = math.hypot(end_x, end_y)
+
+    headings = [
+        math.degrees(math.atan2(dy, dx))
+        for dx, dy in segment_vectors
+        if math.hypot(dx, dy) >= 0.15
+    ]
+    turns = [
+        abs(((right - left + 180.0) % 360.0) - 180.0)
+        for left, right in zip(headings, headings[1:])
+    ]
+
+    max_chord_deviation = 0.0
+    if chord_length > 0.0:
+        chord_sq = chord_length * chord_length
+        for x, y in coords:
+            fraction = max(0.0, min(1.0, (x * end_x + y * end_y) / chord_sq))
+            closest = (fraction * end_x, fraction * end_y)
+            max_chord_deviation = max(
+                max_chord_deviation, math.hypot(x - closest[0], y - closest[1])
+            )
+    else:
+        max_chord_deviation = max(math.hypot(x, y) for x, y in coords)
+
+    shape_points = resample_route_xy(relative, n_points=11)
+    output = {
+        "route_path_length_pre_release": fmt(path_length),
+        "route_chord_length_pre_release": fmt(chord_length),
+        "route_directness_pre_release": fmt(chord_length / path_length if path_length else 0.0),
+        "route_depth_excursion_max_pre_release": fmt(max(x for x, _ in coords)),
+        "route_depth_excursion_min_pre_release": fmt(min(x for x, _ in coords)),
+        "route_lateral_excursion_max_pre_release": fmt(max(y for _, y in coords)),
+        "route_lateral_excursion_min_pre_release": fmt(min(y for _, y in coords)),
+        "route_cumulative_turn_degrees_pre_release": fmt(sum(turns)),
+        "route_max_turn_degrees_pre_release": fmt(max(turns, default=0.0)),
+        "route_max_chord_deviation_pre_release": fmt(max_chord_deviation),
+        ROUTE_SHAPE_COLUMN: json.dumps(
+            [[round(x, 5), round(y, 5)] for x, y in shape_points], separators=(",", ":")
+        ),
+    }
     return output
 
 

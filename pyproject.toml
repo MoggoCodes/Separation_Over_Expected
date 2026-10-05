@@ -20,4 +20,5 @@ build-backend = "uv_build"
 dev = [
     "jupytext>=1.19.5",
     "kaggle>=2.2.4",
+    "scikit-learn>=1.9.1",
 ]
