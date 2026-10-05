@@ -10,6 +10,7 @@ from .feature_schema import (
     DYNAMIC_CONTEXT_FEATURES,
     DYNAMIC_DEFENDER_RANKS,
     DYNAMIC_DEFENDER_SUMMARIES,
+    POCKET_CONTEXT_FEATURES,
 )
 from .utils import fmt, normalize_xy, parse_float
 
@@ -84,19 +85,23 @@ def build_route_table(
     output_path: Path,
     weeks: list[int],
     include_dynamic_features: bool = False,
+    include_pocket_features: bool = False,
 ) -> None:
     plays = read_plays(data_dir / "plays.csv")
     players = read_players(data_dir / "players.csv")
-    routes_by_play, coverage_by_play = read_pff_roles(data_dir / "pffScoutingData.csv")
+    routes_by_play, coverage_by_play, passer_by_play, rushers_by_play = read_pff_roles(
+        data_dir / "pffScoutingData.csv"
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     total_rows = 0
     total_plays = 0
+    use_dynamic_tracking = include_dynamic_features or include_pocket_features
     columns = ROUTE_TABLE_COLUMNS + (
-        list(DYNAMIC_CONTEXT_FEATURES) if include_dynamic_features else []
-    )
+        list(DYNAMIC_CONTEXT_FEATURES) if use_dynamic_tracking else []
+    ) + (list(POCKET_CONTEXT_FEATURES) if include_pocket_features else [])
     with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns)
+        writer = csv.DictWriter(f, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
         for week in weeks:
             week_path = data_dir / f"week{week}.csv"
@@ -113,13 +118,22 @@ def build_route_table(
                 and key in coverage_by_play
             }
             week_rows = 0
-            if include_dynamic_features:
+            if use_dynamic_tracking:
                 play_trajectories = iter_play_trajectories(
                     week_path,
                     eligible_keys,
                     event_frames,
                     routes_by_play,
                     coverage_by_play,
+                    extra_participants_by_play=(
+                        {
+                            key: passer_by_play.get(key, set())
+                            | rushers_by_play.get(key, set())
+                            for key in eligible_keys
+                        }
+                        if include_pocket_features
+                        else None
+                    ),
                 )
                 for key, trajectory in play_trajectories:
                     play = plays.get(key)
@@ -147,6 +161,9 @@ def build_route_table(
                             release_positions=release_positions,
                             play_direction=play_direction,
                             dynamic_trajectory=trajectory,
+                            passer_ids=passer_by_play.get(key, set()),
+                            rusher_ids=rushers_by_play.get(key, set()),
+                            include_pocket_features=include_pocket_features,
                         )
                         if row is None:
                             continue
@@ -210,6 +227,9 @@ def make_route_row(
     release_positions: dict[str, dict[str, float | str]],
     play_direction: str,
     dynamic_trajectory: dict[int, dict[str, dict[str, float | str]]] | None = None,
+    passer_ids: set[str] | None = None,
+    rusher_ids: set[str] | None = None,
+    include_pocket_features: bool = False,
 ) -> dict[str, str] | None:
     rid = route["nflId"]
     if rid not in snap_positions or rid not in release_positions:
@@ -306,6 +326,18 @@ def make_route_row(
                 play_direction=play_direction,
             )
         )
+    if include_pocket_features and dynamic_trajectory is not None:
+        row.update(
+            pocket_context_features(
+                trajectory=dynamic_trajectory,
+                snap_frame=snap_frame,
+                release_frame=release_frame,
+                snap_positions=snap_positions,
+                passer_ids=passer_ids or set(),
+                rusher_ids=rusher_ids or set(),
+                play_direction=play_direction,
+            )
+        )
     return row
 
 
@@ -315,13 +347,16 @@ def iter_play_trajectories(
     event_frames: dict[tuple[str, str], dict[str, int]],
     routes_by_play: dict[tuple[str, str], list[dict[str, str]]],
     coverage_by_play: dict[tuple[str, str], set[str]],
+    extra_participants_by_play: dict[tuple[str, str], set[str]] | None = None,
 ):
     """Yield pre-release player frames one play at a time to bound memory use."""
     current_key: tuple[str, str] | None = None
     positions_by_frame: dict[int, dict[str, dict[str, float | str]]] = defaultdict(dict)
     seen_keys: set[tuple[str, str]] = set()
     participants_by_play = {
-        key: coverage_by_play[key] | {route["nflId"] for route in routes_by_play[key]}
+        key: coverage_by_play[key]
+        | {route["nflId"] for route in routes_by_play[key]}
+        | (extra_participants_by_play.get(key, set()) if extra_participants_by_play else set())
         for key in eligible_keys
     }
 
@@ -456,6 +491,124 @@ def dynamic_defender_features(
     return output
 
 
+def pocket_context_features(
+    trajectory: dict[int, dict[str, dict[str, float | str]]],
+    snap_frame: int,
+    release_frame: int,
+    snap_positions: dict[str, dict[str, float | str]],
+    passer_ids: set[str],
+    rusher_ids: set[str],
+    play_direction: str,
+) -> dict[str, str]:
+    """Summarize QB movement and PFF pass-rush proximity before pass release."""
+    blank = {feature: "" for feature in POCKET_CONTEXT_FEATURES}
+    passers_at_snap = sorted(passer_ids & snap_positions.keys())
+    if not passers_at_snap:
+        return blank
+    passer_id = passers_at_snap[0]
+    eligible_frames = sorted(
+        frame for frame in trajectory if snap_frame <= frame < release_frame
+    )
+    expected_frames = max(1, release_frame - snap_frame)
+    qb_samples = [
+        (frame, trajectory[frame][passer_id])
+        for frame in eligible_frames
+        if passer_id in trajectory[frame]
+    ]
+    if not qb_samples:
+        return blank
+    qb_samples.sort(key=lambda item: item[0])
+    qb_positions = [position for _, position in qb_samples]
+    qb_norm = [
+        normalize_xy(float(pos["x"]), float(pos["y"]), play_direction)
+        for pos in qb_positions
+    ]
+    depth_drop = qb_norm[-1][0] - qb_norm[0][0]
+    lateral_drift = qb_norm[-1][1] - qb_norm[0][1]
+    path_length = sum(
+        math.dist(left, right) for left, right in zip(qb_norm, qb_norm[1:])
+    )
+    speeds = [float(pos["s"]) for pos in qb_positions]
+    accelerations = [float(pos["a"]) for pos in qb_positions]
+    output = {
+        "qb_depth_drop_pre_release": fmt(depth_drop),
+        "qb_lateral_drift_pre_release": fmt(lateral_drift),
+        "qb_path_length_pre_release": fmt(path_length),
+        "qb_mean_speed_pre_release": fmt(statistics.fmean(speeds)),
+        "qb_max_speed_pre_release": fmt(max(speeds)),
+        "qb_mean_accel_pre_release": fmt(statistics.fmean(accelerations)),
+        "qb_nearest_rusher_dist_snap": "",
+        "qb_nearest_rusher_min_dist_pre_release": "",
+        "qb_nearest_rusher_mean_dist_pre_release": "",
+        "qb_rusher_closing_rate_pre_release": "",
+        "qb_rusher_within_3yd_frame_share_pre_release": "",
+        "qb_rusher_within_5yd_frame_share_pre_release": "",
+        "qb_pressure_observed_fraction_pre_release": "0.000",
+        "pff_pass_rusher_count": str(len(rusher_ids)),
+    }
+
+    distances_by_frame: list[tuple[int, float]] = []
+    for frame in eligible_frames:
+        qb = trajectory[frame].get(passer_id)
+        if qb is None:
+            continue
+        rusher_positions = [
+            trajectory[frame][rusher_id]
+            for rusher_id in rusher_ids
+            if rusher_id in trajectory[frame]
+        ]
+        if not rusher_positions:
+            continue
+        nearest = min(
+            math.dist((float(qb["x"]), float(qb["y"])), (float(rusher["x"]), float(rusher["y"])))
+            for rusher in rusher_positions
+        )
+        distances_by_frame.append((frame, nearest))
+
+    observed_fraction = len(distances_by_frame) / expected_frames
+    output["qb_pressure_observed_fraction_pre_release"] = fmt(
+        min(1.0, observed_fraction)
+    )
+    snap_positions_rushers = [
+        snap_positions[rusher_id]
+        for rusher_id in rusher_ids
+        if rusher_id in snap_positions
+    ]
+    qb_snap = snap_positions[passer_id]
+    if snap_positions_rushers:
+        output["qb_nearest_rusher_dist_snap"] = fmt(
+            min(
+                math.dist(
+                    (float(qb_snap["x"]), float(qb_snap["y"])),
+                    (float(rusher["x"]), float(rusher["y"])),
+                )
+                for rusher in snap_positions_rushers
+            )
+        )
+    if distances_by_frame and observed_fraction >= 0.8:
+        distances_by_frame.sort(key=lambda item: item[0])
+        distances = [distance for _, distance in distances_by_frame]
+        first_frame, first_distance = distances_by_frame[0]
+        last_frame, last_distance = distances_by_frame[-1]
+        elapsed_seconds = max((last_frame - first_frame) * 0.1, 0.1)
+        output.update(
+            {
+                "qb_nearest_rusher_min_dist_pre_release": fmt(min(distances)),
+                "qb_nearest_rusher_mean_dist_pre_release": fmt(statistics.fmean(distances)),
+                "qb_rusher_closing_rate_pre_release": fmt(
+                    (first_distance - last_distance) / elapsed_seconds
+                ),
+                "qb_rusher_within_3yd_frame_share_pre_release": fmt(
+                    sum(distance <= 3.0 for distance in distances) / len(distances)
+                ),
+                "qb_rusher_within_5yd_frame_share_pre_release": fmt(
+                    sum(distance <= 5.0 for distance in distances) / len(distances)
+                ),
+            }
+        )
+    return output
+
+
 def read_plays(path: Path) -> dict[tuple[str, str], dict[str, str]]:
     with path.open(newline="") as f:
         return {(row["gameId"], row["playId"]): row for row in csv.DictReader(f)}
@@ -468,9 +621,16 @@ def read_players(path: Path) -> dict[str, dict[str, str]]:
 
 def read_pff_roles(
     path: Path,
-) -> tuple[dict[tuple[str, str], list[dict[str, str]]], dict[tuple[str, str], set[str]]]:
+) -> tuple[
+    dict[tuple[str, str], list[dict[str, str]]],
+    dict[tuple[str, str], set[str]],
+    dict[tuple[str, str], set[str]],
+    dict[tuple[str, str], set[str]],
+]:
     routes: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     coverage: dict[tuple[str, str], set[str]] = defaultdict(set)
+    passers: dict[tuple[str, str], set[str]] = defaultdict(set)
+    pass_rushers: dict[tuple[str, str], set[str]] = defaultdict(set)
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
             key = (row["gameId"], row["playId"])
@@ -483,7 +643,11 @@ def read_pff_roles(
                 )
             elif row["pff_role"] == "Coverage":
                 coverage[key].add(row["nflId"])
-    return routes, coverage
+            elif row["pff_role"] == "Pass":
+                passers[key].add(row["nflId"])
+            elif row["pff_role"] == "Pass Rush":
+                pass_rushers[key].add(row["nflId"])
+    return routes, coverage, passers, pass_rushers
 
 
 def find_event_frames(path: Path) -> dict[tuple[str, str], dict[str, int]]:

@@ -56,7 +56,7 @@ class GameGroupingTests(unittest.TestCase):
         self.assertEqual(len(metrics), 3)
         self.assertAlmostEqual(float(metrics[0]["pearson"]), 1.0)
         self.assertAlmostEqual(float(metrics[1]["pearson"]), 1.0)
-        self.assertEqual(metrics[2]["comparison"], "dynamic_minus_static_pearson")
+        self.assertEqual(metrics[2]["comparison"], "dynamic_minus_static")
 
 
 if __name__ == "__main__":

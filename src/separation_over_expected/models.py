@@ -5,7 +5,7 @@ import random
 import statistics
 from collections import defaultdict
 
-from .feature_schema import DYNAMIC_CONTEXT_FEATURES
+from .feature_schema import DYNAMIC_CONTEXT_FEATURES, POCKET_CONTEXT_FEATURES
 from .utils import parse_float
 
 
@@ -364,6 +364,14 @@ class RidgeDynamicContextModel(RidgeContextModel):
     name = "ridge_dynamic_context"
     impute_missing_numeric = True
     numeric_features = [*RidgeContextModel.numeric_features, *DYNAMIC_CONTEXT_FEATURES]
+
+
+class RidgePocketContextModel(RidgeDynamicContextModel):
+    name = "ridge_pocket_context"
+    numeric_features = [
+        *RidgeDynamicContextModel.numeric_features,
+        *POCKET_CONTEXT_FEATURES,
+    ]
 
 
 def regression_metrics(actual: list[float], predicted: list[float]) -> dict[str, str]:

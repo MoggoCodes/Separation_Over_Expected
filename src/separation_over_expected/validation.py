@@ -6,8 +6,14 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
-from .feature_schema import DYNAMIC_CONTEXT_FEATURES
-from .models import RidgeContextModel, RidgeDynamicContextModel, regression_metrics, target
+from .feature_schema import DYNAMIC_CONTEXT_FEATURES, POCKET_CONTEXT_FEATURES
+from .models import (
+    RidgeContextModel,
+    RidgeDynamicContextModel,
+    RidgePocketContextModel,
+    regression_metrics,
+    target,
+)
 
 
 def assign_game_folds(
@@ -55,20 +61,32 @@ def cross_validate_position(
     seed: int = 42,
     min_routes_per_half: int = 20,
     bootstrap_samples: int = 2000,
+    include_pocket_context: bool = False,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     """Return out-of-game predictions, model metrics, player-half scores, and stability metrics."""
     rows = [row for row in rows if row["officialPosition"] == position]
     if not rows:
         raise ValueError(f"No route rows available for position={position!r}")
-    missing = [feature for feature in DYNAMIC_CONTEXT_FEATURES if feature not in rows[0]]
+    required_features = list(DYNAMIC_CONTEXT_FEATURES)
+    if include_pocket_context:
+        required_features.extend(POCKET_CONTEXT_FEATURES)
+    missing = [feature for feature in required_features if feature not in rows[0]]
     if missing:
+        rebuild_flag = (
+            "--include-pocket-features"
+            if include_pocket_context
+            else "--include-dynamic-features"
+        )
         raise ValueError(
-            "Dynamic features are required for cross-validation. Rebuild the route table "
-            "with build-route-table --include-dynamic-features."
+            "Required context features are missing. Rebuild the route table with "
+            f"build-route-table {rebuild_flag}."
         )
 
     fold_by_game = assign_game_folds(rows, n_folds=n_folds, seed=seed)
     half_by_game = assign_game_halves(rows, seed=seed + 10_000)
+    model_names = ["ridge_context", "ridge_dynamic_context"]
+    if include_pocket_context:
+        model_names.append("ridge_pocket_context")
     predictions: list[dict[str, str]] = []
     fold_metrics: list[dict[str, str]] = []
 
@@ -83,16 +101,25 @@ def cross_validate_position(
         ]
         static_model = RidgeContextModel(l2=25.0, max_levels_per_feature=30)
         dynamic_model = RidgeDynamicContextModel(l2=25.0, max_levels_per_feature=30)
+        if include_pocket_context:
+            pocket_model = RidgePocketContextModel(l2=25.0, max_levels_per_feature=30)
         static_model.fit(train_rows)
         dynamic_model.fit(train_rows)
+        if include_pocket_context:
+            pocket_model.fit(train_rows)
 
         actual = [target(row) for row in heldout_rows]
         static_predictions = [static_model.predict(row) for row in heldout_rows]
         dynamic_predictions = [dynamic_model.predict(row) for row in heldout_rows]
-        for model_name, values in (
-            ("ridge_context", static_predictions),
-            ("ridge_dynamic_context", dynamic_predictions),
-        ):
+        fold_predictions = {
+            "ridge_context": static_predictions,
+            "ridge_dynamic_context": dynamic_predictions,
+        }
+        if include_pocket_context:
+            fold_predictions["ridge_pocket_context"] = [
+                pocket_model.predict(row) for row in heldout_rows
+            ]
+        for model_name, values in fold_predictions.items():
             fold_metrics.append(
                 {
                     "fold": str(fold + 1),
@@ -101,27 +128,24 @@ def cross_validate_position(
                 }
             )
 
-        for row, static_pred, dynamic_pred in zip(
-            heldout_rows, static_predictions, dynamic_predictions
-        ):
+        for row_index, row in enumerate(heldout_rows):
             game_key = (str(int(row["week"])), row["gameId"])
-            predictions.append(
-                {
-                    "gameId": row["gameId"],
-                    "playId": row["playId"],
-                    "nflId": row["nflId"],
-                    "displayName": row["displayName"],
-                    "officialPosition": row["officialPosition"],
-                    "week": row["week"],
-                    "fold": str(fold + 1),
-                    "reliability_half": half_by_game[game_key],
-                    "delta_sep": f"{target(row):.8f}",
-                    "pred_delta_sep_ridge_context": f"{static_pred:.8f}",
-                    "pred_delta_sep_ridge_dynamic_context": f"{dynamic_pred:.8f}",
-                    "soe_route_ridge_context": f"{target(row) - static_pred:.8f}",
-                    "soe_route_ridge_dynamic_context": f"{target(row) - dynamic_pred:.8f}",
-                }
-            )
+            prediction_row = {
+                "gameId": row["gameId"],
+                "playId": row["playId"],
+                "nflId": row["nflId"],
+                "displayName": row["displayName"],
+                "officialPosition": row["officialPosition"],
+                "week": row["week"],
+                "fold": str(fold + 1),
+                "reliability_half": half_by_game[game_key],
+                "delta_sep": f"{target(row):.8f}",
+            }
+            for model_name, values in fold_predictions.items():
+                prediction = values[row_index]
+                prediction_row[f"pred_delta_sep_{model_name}"] = f"{prediction:.8f}"
+                prediction_row[f"soe_route_{model_name}"] = f"{target(row) - prediction:.8f}"
+            predictions.append(prediction_row)
 
     if len(predictions) != len(rows):
         raise RuntimeError(
@@ -137,10 +161,8 @@ def cross_validate_position(
     if any(len(folds) != 1 for folds in game_folds.values()):
         raise RuntimeError("A game was assigned to multiple folds")
 
-    for model_name, prediction_column in (
-        ("ridge_context", "pred_delta_sep_ridge_context"),
-        ("ridge_dynamic_context", "pred_delta_sep_ridge_dynamic_context"),
-    ):
+    for model_name in model_names:
+        prediction_column = f"pred_delta_sep_{model_name}"
         fold_metrics.append(
             {
                 "fold": "OOF_ALL",
@@ -157,6 +179,7 @@ def cross_validate_position(
         min_routes_per_half=min_routes_per_half,
         bootstrap_samples=bootstrap_samples,
         seed=seed,
+        model_names=tuple(model_names),
     )
     return predictions, fold_metrics, player_rows, reliability_metrics
 
@@ -166,22 +189,19 @@ def receiver_half_reliability(
     min_routes_per_half: int = 20,
     bootstrap_samples: int = 2000,
     seed: int = 42,
+    model_names: tuple[str, ...] = ("ridge_context", "ridge_dynamic_context"),
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     by_player: dict[tuple[str, str], dict[str, dict[str, list[float]]]] = defaultdict(
         lambda: {
-            "A": {"ridge_context": [], "ridge_dynamic_context": []},
-            "B": {"ridge_context": [], "ridge_dynamic_context": []},
+            "A": {model: [] for model in model_names},
+            "B": {model: [] for model in model_names},
         }
     )
     for row in predictions:
         player = (row["nflId"], row["displayName"])
         half = row["reliability_half"]
-        by_player[player][half]["ridge_context"].append(
-            float(row["soe_route_ridge_context"])
-        )
-        by_player[player][half]["ridge_dynamic_context"].append(
-            float(row["soe_route_ridge_dynamic_context"])
-        )
+        for model in model_names:
+            by_player[player][half][model].append(float(row[f"soe_route_{model}"]))
 
     eligible = {
         player: halves
@@ -189,13 +209,13 @@ def receiver_half_reliability(
         if all(
             len(halves[half][model]) >= min_routes_per_half
             for half in ("A", "B")
-            for model in ("ridge_context", "ridge_dynamic_context")
+            for model in model_names
         )
     }
     player_rows = []
     for (nfl_id, name), halves in sorted(eligible.items()):
         row = {"nflId": nfl_id, "displayName": name}
-        for model in ("ridge_context", "ridge_dynamic_context"):
+        for model in model_names:
             for half in ("A", "B"):
                 values = halves[half][model]
                 row[f"routes_{model}_{half}"] = str(len(values))
@@ -207,6 +227,7 @@ def receiver_half_reliability(
         bootstrap_samples=bootstrap_samples,
         seed=seed,
         min_routes_per_half=min_routes_per_half,
+        model_names=model_names,
     )
     return player_rows, metrics
 
@@ -216,19 +237,21 @@ def reliability_metrics(
     bootstrap_samples: int = 2000,
     seed: int = 42,
     min_routes_per_half: int = 20,
+    model_names: tuple[str, ...] = ("ridge_context", "ridge_dynamic_context"),
 ) -> list[dict[str, str]]:
     model_pairs = {
         model: (
             [float(row[f"mean_soe_{model}_A"]) for row in player_rows],
             [float(row[f"mean_soe_{model}_B"]) for row in player_rows],
         )
-        for model in ("ridge_context", "ridge_dynamic_context")
+        for model in model_names
     }
     observed = {model: correlation_stats(*pairs) for model, pairs in model_pairs.items()}
     rng = random.Random(seed)
     bootstraps = {model: {"pearson": [], "spearman": []} for model in model_pairs}
-    difference_bootstrap = []
-    difference_spearman_bootstrap = []
+    difference_bootstrap: dict[tuple[str, str], dict[str, list[float]]] = {}
+    for baseline, augmented in zip(model_names, model_names[1:]):
+        difference_bootstrap[(baseline, augmented)] = {"pearson": [], "spearman": []}
     n = len(player_rows)
     if n >= 3 and bootstrap_samples > 0:
         for _ in range(bootstrap_samples):
@@ -244,14 +267,12 @@ def reliability_metrics(
                 stats = correlation_stats(xs, ys)
                 for statistic, value in stats.items():
                     bootstraps[model][statistic].append(value)
-            difference_bootstrap.append(
-                bootstraps["ridge_dynamic_context"]["pearson"][-1]
-                - bootstraps["ridge_context"]["pearson"][-1]
-            )
-            difference_spearman_bootstrap.append(
-                bootstraps["ridge_dynamic_context"]["spearman"][-1]
-                - bootstraps["ridge_context"]["spearman"][-1]
-            )
+            for (baseline, augmented), differences in difference_bootstrap.items():
+                for statistic in ("pearson", "spearman"):
+                    differences[statistic].append(
+                        bootstraps[augmented][statistic][-1]
+                        - bootstraps[baseline][statistic][-1]
+                    )
 
     results = []
     for model in model_pairs:
@@ -270,21 +291,26 @@ def reliability_metrics(
                 "minimum_routes_each_half": str(min_routes_per_half),
             }
     )
-    differences = sorted(difference_bootstrap)
-    spearman_differences = sorted(difference_spearman_bootstrap)
-    results.append(
-        {
-            "comparison": "dynamic_minus_static_pearson",
-            "eligible_receivers": str(n),
-            "pearson": f"{observed['ridge_dynamic_context']['pearson'] - observed['ridge_context']['pearson']:.6f}",
-            "spearman": f"{observed['ridge_dynamic_context']['spearman'] - observed['ridge_context']['spearman']:.6f}",
-            "pearson_ci_lower": f"{percentile(differences, 0.025):.6f}" if differences else "",
-            "pearson_ci_upper": f"{percentile(differences, 0.975):.6f}" if differences else "",
-            "spearman_ci_lower": f"{percentile(spearman_differences, 0.025):.6f}" if spearman_differences else "",
-            "spearman_ci_upper": f"{percentile(spearman_differences, 0.975):.6f}" if spearman_differences else "",
-            "minimum_routes_each_half": str(min_routes_per_half),
-        }
-    )
+    for (baseline, augmented), differences in difference_bootstrap.items():
+        pearson_differences = sorted(differences["pearson"])
+        spearman_differences = sorted(differences["spearman"])
+        comparison_name = {
+            ("ridge_context", "ridge_dynamic_context"): "dynamic_minus_static",
+            ("ridge_dynamic_context", "ridge_pocket_context"): "pocket_minus_dynamic",
+        }.get((baseline, augmented), f"{augmented}_minus_{baseline}")
+        results.append(
+            {
+                "comparison": comparison_name,
+                "eligible_receivers": str(n),
+                "pearson": f"{observed[augmented]['pearson'] - observed[baseline]['pearson']:.6f}",
+                "spearman": f"{observed[augmented]['spearman'] - observed[baseline]['spearman']:.6f}",
+                "pearson_ci_lower": f"{percentile(pearson_differences, 0.025):.6f}" if pearson_differences else "",
+                "pearson_ci_upper": f"{percentile(pearson_differences, 0.975):.6f}" if pearson_differences else "",
+                "spearman_ci_lower": f"{percentile(spearman_differences, 0.025):.6f}" if spearman_differences else "",
+                "spearman_ci_upper": f"{percentile(spearman_differences, 0.975):.6f}" if spearman_differences else "",
+                "minimum_routes_each_half": str(min_routes_per_half),
+            }
+        )
     return results
 
 

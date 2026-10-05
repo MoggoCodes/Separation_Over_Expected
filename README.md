@@ -214,6 +214,27 @@ Across 20,415 WR routes, dynamic context modestly improves out-of-fold route pre
 
 `notebooks/08_game_grouped_oof_receiver_reliability.ipynb` shows fold coverage, route prediction metrics, receiver-level correlations, uncertainty intervals, and SOE scatterplots for the two game halves.
 
+## Pre-Release Pocket Context Experiment
+
+The pocket-context experiment adds 14 pre-release features for quarterback movement and distance to PFF-tagged pass rushers. The release frame is excluded. It compares static ridge, existing dynamic defender-context ridge, and static + dynamic + pocket-context ridge on the same five game-grouped folds:
+
+```bash
+uv run separation-over-expected build-route-table \
+  --data-dir ../data/big_data_bowl_2023 \
+  --output data/processed/dynamic_features/pocket_context/route_level_snap_to_release_pocket.csv \
+  --include-pocket-features
+
+uv run separation-over-expected cross-validate-position \
+  --route-table data/processed/dynamic_features/pocket_context/route_level_snap_to_release_pocket.csv \
+  --output-dir data/processed/dynamic_features/pocket_context/cross_validation \
+  --position WR --folds 5 --seed 42 --min-routes-per-half 20 \
+  --bootstrap-samples 2000 --include-pocket-features
+```
+
+Across 20,415 out-of-fold WR routes, pocket context changes route RMSE from 1.869 to 1.867 and R² from 0.508 to 0.509 relative to dynamic context, a negligible gain. Receiver split-half Pearson reliability drops from 0.452 to 0.424; the paired difference is -0.028 (95% bootstrap interval -0.050 to -0.011). Spearman reliability also declines, with an interval that includes zero. The experiment therefore does not support adding this broad pocket feature set to the preferred receiver model. These results are within-season and do not demonstrate year-to-year stability.
+
+`notebooks/09_pre_release_pocket_context.ipynb` documents the feature coverage, fold-level comparisons, receiver reliability, and interpretation.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -228,3 +249,4 @@ Across 20,415 WR routes, dynamic context modestly improves out-of-fold route pre
 - `notebooks/06_game_grouped_validation.ipynb`: comparison of route-random and game-grouped season-wide evaluation
 - `notebooks/07_dynamic_context_features.ipynb`: pre-release defender-motion feature experiment and model comparison
 - `notebooks/08_game_grouped_oof_receiver_reliability.ipynb`: five-fold game-grouped out-of-fold predictions and receiver SOE stability
+- `notebooks/09_pre_release_pocket_context.ipynb`: pre-release QB/pocket feature experiment and its route- and receiver-level results

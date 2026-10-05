@@ -49,6 +49,11 @@ def main() -> None:
         action="store_true",
         help="Add pre-release summaries of the three coverage defenders nearest at the snap.",
     )
+    build.add_argument(
+        "--include-pocket-features",
+        action="store_true",
+        help="Also add quarterback movement and PFF pass-rush pressure summaries before release.",
+    )
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -182,6 +187,11 @@ def main() -> None:
     cross_validation.add_argument("--seed", type=int, default=42)
     cross_validation.add_argument("--min-routes-per-half", type=int, default=20)
     cross_validation.add_argument("--bootstrap-samples", type=int, default=2000)
+    cross_validation.add_argument(
+        "--include-pocket-features",
+        action="store_true",
+        help="Fit an additional ridge model with quarterback and pressure context.",
+    )
 
     args = parser.parse_args()
     if args.command == "build-route-table":
@@ -190,6 +200,7 @@ def main() -> None:
             args.output,
             args.weeks,
             include_dynamic_features=args.include_dynamic_features,
+            include_pocket_features=args.include_pocket_features,
         )
     elif args.command == "fit-baselines":
         fit_baselines(
@@ -236,6 +247,7 @@ def main() -> None:
             seed=args.seed,
             min_routes_per_half=args.min_routes_per_half,
             bootstrap_samples=args.bootstrap_samples,
+            include_pocket_context=args.include_pocket_features,
         )
         write_oof_outputs(
             args.output_dir,
