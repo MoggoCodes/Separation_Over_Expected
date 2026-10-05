@@ -83,6 +83,7 @@ def main() -> None:
         default=25,
         help="Minimum player routes required in the receiver summary.",
     )
+    add_split_arguments(baseline)
 
     position_baselines = subparsers.add_parser(
         "fit-position-baselines",
@@ -113,6 +114,7 @@ def main() -> None:
         default=25,
         help="Minimum player routes required in each receiver summary.",
     )
+    add_split_arguments(position_baselines)
 
     stability = subparsers.add_parser(
         "split-half-stability",
@@ -154,6 +156,10 @@ def main() -> None:
             args.metrics,
             args.position,
             args.min_routes,
+            args.split_strategy,
+            args.seed,
+            args.train_fraction,
+            args.validation_fraction,
         )
     elif args.command == "fit-position-baselines":
         fit_position_baselines(
@@ -161,6 +167,10 @@ def main() -> None:
             args.output_dir,
             args.positions,
             args.min_routes,
+            args.split_strategy,
+            args.seed,
+            args.train_fraction,
+            args.validation_fraction,
         )
     elif args.command == "split-half-stability":
         rows = read_csv_rows(args.predictions)
@@ -180,21 +190,40 @@ def fit_baselines(
     metrics_path: Path,
     position: str | None = None,
     min_routes: int = 25,
+    split_strategy: str = "week",
+    seed: int = 42,
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
+    precomputed_splits: dict[str, list[dict[str, str]]] | None = None,
 ) -> None:
     rows = read_csv_rows(route_table)
     rows = filter_rows(rows, position=position)
     if not rows:
         raise ValueError(f"No route rows available for position={position!r}")
-    splits = split_rows(rows)
+    if precomputed_splits is None:
+        splits = split_rows(
+            rows,
+            strategy=split_strategy,
+            seed=seed,
+            train_fraction=train_fraction,
+            validation_fraction=validation_fraction,
+        )
+    else:
+        splits = {
+            split: filter_rows(split_rows_data, position=position)
+            for split, split_rows_data in precomputed_splits.items()
+        }
     models = fit_models(splits["train"])
     metrics_rows = evaluate_models(models, splits)
     scoring_model = next(model for model in models if model.name == "ridge_context")
 
     write_metrics(metrics_path, metrics_rows)
-    write_predictions(predictions_path, rows, models, scoring_model)
+    prediction_rows = [row for split_rows_data in splits.values() for row in split_rows_data]
+    write_predictions(predictions_path, prediction_rows, models, scoring_model)
+    summary_rows = splits["test"] if split_strategy in {"random", "game"} else rows
     write_receiver_summary(
         receiver_summary_path,
-        rows,
+        summary_rows,
         scoring_model,
         min_routes=min_routes,
         position=position,
@@ -218,8 +247,20 @@ def fit_position_baselines(
     output_dir: Path,
     positions: list[str],
     min_routes: int,
+    split_strategy: str = "week",
+    seed: int = 42,
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    rows = read_csv_rows(route_table)
+    all_splits = split_rows(
+        rows,
+        strategy=split_strategy,
+        seed=seed,
+        train_fraction=train_fraction,
+        validation_fraction=validation_fraction,
+    )
     fit_baselines(
         route_table,
         output_dir / "route_level_baseline_predictions_all.csv",
@@ -227,6 +268,8 @@ def fit_position_baselines(
         output_dir / "baseline_metrics_all.csv",
         position=None,
         min_routes=min_routes,
+        split_strategy=split_strategy,
+        precomputed_splits=all_splits,
     )
     for position in positions:
         suffix = position.lower()
@@ -237,4 +280,18 @@ def fit_position_baselines(
             output_dir / f"baseline_metrics_{suffix}.csv",
             position=position,
             min_routes=min_routes,
+            split_strategy=split_strategy,
+            precomputed_splits=all_splits,
         )
+
+
+def add_split_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--split-strategy",
+        choices=["week", "random", "game"],
+        default="week",
+        help="Use a week holdout, random route split, or game-grouped split stratified by week.",
+    )
+    parser.add_argument("--seed", type=int, default=42, help="Random split seed.")
+    parser.add_argument("--train-fraction", type=float, default=0.70)
+    parser.add_argument("--validation-fraction", type=float, default=0.15)

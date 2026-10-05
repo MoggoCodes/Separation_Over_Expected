@@ -36,7 +36,7 @@ def write_predictions(
     models: list[object],
     scoring_model: object,
 ) -> None:
-    fieldnames = list(rows[0].keys())
+    fieldnames = [field for field in rows[0].keys() if field != "split"]
     for model in models:
         fieldnames.append(f"pred_delta_sep_{model.name}")
     fieldnames.extend(["soe_route", "split"])

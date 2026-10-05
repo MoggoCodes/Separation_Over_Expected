@@ -112,7 +112,7 @@ With at least 20 WR routes in each half, 107 receivers qualify. The early/late P
 
 ## Coverage Context Experiment
 
-The `coverage-context-features` branch adds local defensive context at the snap: second/third defender distance, defender density, nearest DB/LB distance, and leverage features. The WR model's test performance is nearly unchanged:
+The coverage-context experiment adds local defensive context at the snap: second/third defender distance, defender density, nearest DB/LB distance, and leverage features. The WR model's test performance is nearly unchanged:
 
 | WR Ridge Model | Test R2 | Test RMSE | Test MAE | Split-Half Corr |
 |---|---:|---:|---:|---:|
@@ -120,6 +120,54 @@ The `coverage-context-features` branch adds local defensive context at the snap:
 | Coverage context | 0.503 | 1.848 | 1.388 | 0.406 |
 
 This simple defensive-context feature set does not materially improve the WR model. That suggests the next improvement needs route-shape or time-varying coverage-responsibility information rather than snap-only defender density.
+
+## Random Split Across All Weeks
+
+To estimate performance on a representative mix of the 2021 season, the same pooled and position-specific models can also use a seeded random route-level split across all eight weeks. The default is 70% train, 15% validation, and 15% test; seed 42 reproduces the checked-in experiment. The existing week-based evaluation remains available for measuring forward-in-time performance.
+
+```bash
+uv run separation-over-expected fit-position-baselines \
+  --route-table data/processed/route_level_snap_to_release.csv \
+  --output-dir data/processed/random_split/position_baselines \
+  --positions WR TE RB \
+  --split-strategy random \
+  --seed 42
+```
+
+The random split test results are:
+
+| Position | Model | Test R2 | Test RMSE | Test MAE | Routes |
+|---|---|---:|---:|---:|---:|
+| All | ridge_context | 0.359 | 2.363 | 1.711 | 5,256 |
+| WR | ridge_context | 0.514 | 1.895 | 1.381 | 3,082 |
+| TE | ridge_context | 0.288 | 2.373 | 1.704 | 1,173 |
+| RB | ridge_context | 0.235 | 3.241 | 2.582 | 939 |
+
+These metrics describe random held-out routes drawn from the same season-wide mix; they are not a future-week forecast. Routes are split independently, so routes from the same play can appear in more than one partition. Receiver summaries in this experiment use test routes only.
+
+## Game-Grouped Validation
+
+As a dependence check, the split can keep every route from a game together while assigning games within each week to train, validation, and test. This preserves coverage across all eight weeks and prevents any game from appearing in multiple partitions:
+
+```bash
+uv run separation-over-expected fit-position-baselines \
+  --route-table data/processed/route_level_snap_to_release.csv \
+  --output-dir data/processed/game_split/position_baselines \
+  --positions WR TE RB \
+  --split-strategy game \
+  --seed 42
+```
+
+The 122 eligible games split into 85 train, 16 validation, and 21 test games. The grouped test results were:
+
+| Position | Random-route Test R2 | Game-split Test R2 | Random-route RMSE | Game-split RMSE |
+|---|---:|---:|---:|---:|
+| All | 0.359 | 0.340 | 2.363 | 2.392 |
+| WR | 0.514 | 0.479 | 1.895 | 1.967 |
+| TE | 0.288 | 0.266 | 2.373 | 2.369 |
+| RB | 0.235 | 0.237 | 3.241 | 3.243 |
+
+The game split lowers ridge R2 modestly for all routes, WRs, and TEs, while RB performance is nearly unchanged. This suggests the route-level split may be somewhat optimistic, especially for WRs, but the test samples also differ, so it is a robustness comparison rather than a direct measurement of leakage.
 
 ## Project Structure
 
@@ -131,3 +179,5 @@ This simple defensive-context feature set does not materially improve the WR mod
 - `notebooks/02_uncertainty_aware_wr_leaderboard.ipynb`: focused notebook for the uncertainty-aware WR leaderboard
 - `notebooks/03_wr_split_half_stability.ipynb`: validation notebook checking whether WR SOE persists from weeks 1-4 to weeks 5-8
 - `notebooks/04_coverage_context_features.ipynb`: experiment notebook showing that simple snap-level coverage context does not materially improve WR performance or stability
+- `notebooks/05_random_split_model_evaluation.ipynb`: comparison of season-wide random-split results with the week-based evaluation
+- `notebooks/06_game_grouped_validation.ipynb`: comparison of route-random and game-grouped season-wide evaluation

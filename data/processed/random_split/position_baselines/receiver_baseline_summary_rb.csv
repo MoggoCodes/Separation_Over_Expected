@@ -1,0 +1,6 @@
+nflId,displayName,officialPosition,routes,mean_soe,median_soe,std_soe,se_soe,lower_95_soe,upper_95_soe,total_soe
+44816,Leonard Fournette,RB,25,0.521,0.734,2.404,0.481,-0.421,1.464,13.031
+43722,J.D. McKissic,RB,25,0.469,0.137,2.881,0.576,-0.660,1.598,11.727
+53453,Najee Harris,RB,30,0.040,-0.397,3.467,0.633,-1.200,1.281,1.209
+52443,D'Andre Swift,RB,26,-0.071,0.374,3.007,0.590,-1.227,1.084,-1.853
+47853,Darrell Henderson,RB,25,-0.007,-0.980,3.721,0.744,-1.466,1.452,-0.174

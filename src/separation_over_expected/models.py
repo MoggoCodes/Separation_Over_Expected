@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import random
 import statistics
 from collections import defaultdict
 
@@ -12,6 +13,8 @@ def target(row: dict[str, str]) -> float:
 
 
 def split_name(row: dict[str, str]) -> str:
+    if row.get("split") in {"train", "validation", "test"}:
+        return row["split"]
     week = int(row["week"])
     if week <= 6:
         return "train"
@@ -20,12 +23,95 @@ def split_name(row: dict[str, str]) -> str:
     return "test"
 
 
-def split_rows(rows: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
+def split_rows(
+    rows: list[dict[str, str]],
+    strategy: str = "week",
+    seed: int = 42,
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
+) -> dict[str, list[dict[str, str]]]:
+    if strategy in {"random", "game"}:
+        validate_split_fractions(train_fraction, validation_fraction)
+        if len(rows) < 3:
+            raise ValueError(
+                "At least 3 rows are required for a train/validation/test split"
+            )
+        assignments = {}
+        if strategy == "random":
+            indices = list(range(len(rows)))
+            random.Random(seed).shuffle(indices)
+            train_end = max(1, min(len(rows) - 2, int(len(rows) * train_fraction)))
+            validation_end = max(
+                train_end + 1,
+                min(len(rows) - 1, train_end + int(len(rows) * validation_fraction)),
+            )
+            for index in indices[:train_end]:
+                assignments[index] = "train"
+            for index in indices[train_end:validation_end]:
+                assignments[index] = "validation"
+            for index in indices[validation_end:]:
+                assignments[index] = "test"
+            keys = list(range(len(rows)))
+        else:
+            games_by_week: dict[int, set[str]] = defaultdict(set)
+            for row in rows:
+                games_by_week[int(row["week"])].add(row["gameId"])
+            for week, game_ids in sorted(games_by_week.items()):
+                ordered_games = sorted(game_ids)
+                if len(ordered_games) < 3:
+                    raise ValueError(
+                        f"Week {week} needs at least 3 games for a game-level split"
+                    )
+                random.Random(seed + week).shuffle(ordered_games)
+                train_end = max(
+                    1,
+                    min(
+                        len(ordered_games) - 2,
+                        int(len(ordered_games) * train_fraction + 0.5),
+                    ),
+                )
+                validation_count = max(
+                    1, int(len(ordered_games) * validation_fraction + 0.5)
+                )
+                validation_end = max(
+                    train_end + 1,
+                    min(
+                        len(ordered_games) - 1,
+                        train_end + validation_count,
+                    ),
+                )
+                for game_id in ordered_games[:train_end]:
+                    assignments[(week, game_id)] = "train"
+                for game_id in ordered_games[train_end:validation_end]:
+                    assignments[(week, game_id)] = "validation"
+                for game_id in ordered_games[validation_end:]:
+                    assignments[(week, game_id)] = "test"
+            keys = [(int(row["week"]), row["gameId"]) for row in rows]
+        labeled_rows = []
+        for row, key in zip(rows, keys):
+            labeled = dict(row)
+            labeled["split"] = assignments[key]
+            labeled_rows.append(labeled)
+        return {
+            split: [row for row in labeled_rows if row["split"] == split]
+            for split in ("train", "validation", "test")
+        }
+    if strategy != "week":
+        raise ValueError(f"Unknown split strategy: {strategy}")
     return {
         "train": [row for row in rows if split_name(row) == "train"],
         "validation": [row for row in rows if split_name(row) == "validation"],
         "test": [row for row in rows if split_name(row) == "test"],
     }
+
+
+def validate_split_fractions(train_fraction: float, validation_fraction: float) -> None:
+    if not 0.0 < train_fraction < 1.0:
+        raise ValueError("train_fraction must be between 0 and 1")
+    if not 0.0 < validation_fraction < 1.0:
+        raise ValueError("validation_fraction must be between 0 and 1")
+    if train_fraction + validation_fraction >= 1.0:
+        raise ValueError("train_fraction + validation_fraction must be less than 1")
 
 
 def filter_rows(
