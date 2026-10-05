@@ -5,6 +5,7 @@ import random
 import statistics
 from collections import defaultdict
 
+from .feature_schema import DYNAMIC_CONTEXT_FEATURES
 from .utils import parse_float
 
 
@@ -133,8 +134,8 @@ def filter_rows(
     return filtered
 
 
-def default_baseline_models() -> list[object]:
-    return [
+def default_baseline_models(include_dynamic_context: bool = False) -> list[object]:
+    models = [
         GlobalMeanModel(),
         SmoothedGroupMeanModel(
             keys=["officialPosition", "pff_positionLinedUp", "pff_passCoverageType"],
@@ -142,12 +143,17 @@ def default_baseline_models() -> list[object]:
         ),
         RidgeContextModel(l2=25.0, max_levels_per_feature=30),
     ]
+    if include_dynamic_context:
+        models.append(RidgeDynamicContextModel(l2=25.0, max_levels_per_feature=30))
+    return models
 
 
 def fit_models(
-    train_rows: list[dict[str, str]], models: list[object] | None = None
+    train_rows: list[dict[str, str]],
+    models: list[object] | None = None,
+    include_dynamic_context: bool = False,
 ) -> list[object]:
-    fitted_models = models or default_baseline_models()
+    fitted_models = models or default_baseline_models(include_dynamic_context)
     for model in fitted_models:
         model.fit(train_rows)
     return fitted_models
@@ -179,6 +185,15 @@ def add_model_predictions(
     for model in models:
         out[f"pred_delta_sep_{model.name}"] = f"{model.predict(row):.3f}"
     out["soe_route"] = f"{target(row) - scoring_model.predict(row):.3f}"
+    if any(model.name == "ridge_dynamic_context" for model in models):
+        static_model = next(model for model in models if model.name == "ridge_context")
+        dynamic_model = next(
+            model for model in models if model.name == "ridge_dynamic_context"
+        )
+        out["soe_route_ridge_context"] = f"{target(row) - static_model.predict(row):.3f}"
+        out["soe_route_ridge_dynamic_context"] = (
+            f"{target(row) - dynamic_model.predict(row):.3f}"
+        )
     out["split"] = split_name(row)
     return out
 
@@ -220,6 +235,7 @@ class SmoothedGroupMeanModel:
 
 class RidgeContextModel:
     name = "ridge_context"
+    impute_missing_numeric = False
 
     numeric_features = [
         "sep_snap",
@@ -266,7 +282,21 @@ class RidgeContextModel:
     def fit(self, rows: list[dict[str, str]]) -> None:
         self.numeric_stats = {}
         for feature in self.numeric_features:
-            values = [parse_float(row[feature]) for row in rows]
+            if self.impute_missing_numeric:
+                observed = [
+                    parse_float(row[feature])
+                    for row in rows
+                    if row.get(feature, "") not in {"", "NA"}
+                ]
+                mean = statistics.fmean(observed) if observed else 0.0
+                values = [
+                    parse_float(row[feature])
+                    if row.get(feature, "") not in {"", "NA"}
+                    else mean
+                    for row in rows
+                ]
+            else:
+                values = [parse_float(row[feature]) for row in rows]
             mean = statistics.fmean(values)
             stdev = statistics.pstdev(values) or 1.0
             self.numeric_stats[feature] = (mean, stdev)
@@ -313,7 +343,13 @@ class RidgeContextModel:
         index = 1
         for feature in self.numeric_features:
             mean, stdev = self.numeric_stats[feature]
-            values.append((index, (parse_float(row[feature]) - mean) / stdev))
+            value = row.get(feature, "")
+            numeric_value = (
+                mean
+                if self.impute_missing_numeric and value in {"", "NA"}
+                else parse_float(value)
+            )
+            values.append((index, (numeric_value - mean) / stdev))
             index += 1
         for feature in self.categorical_features:
             levels = self.categorical_levels[feature]
@@ -322,6 +358,12 @@ class RidgeContextModel:
                     values.append((index, 1.0))
                 index += 1
         return values
+
+
+class RidgeDynamicContextModel(RidgeContextModel):
+    name = "ridge_dynamic_context"
+    impute_missing_numeric = True
+    numeric_features = [*RidgeContextModel.numeric_features, *DYNAMIC_CONTEXT_FEATURES]
 
 
 def regression_metrics(actual: list[float], predicted: list[float]) -> dict[str, str]:

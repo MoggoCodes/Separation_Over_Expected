@@ -43,6 +43,11 @@ def main() -> None:
         default=list(range(1, 9)),
         help="Week numbers to process.",
     )
+    build.add_argument(
+        "--include-dynamic-features",
+        action="store_true",
+        help="Add pre-release summaries of the three coverage defenders nearest at the snap.",
+    )
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -83,6 +88,13 @@ def main() -> None:
         default=25,
         help="Minimum player routes required in the receiver summary.",
     )
+    baseline.add_argument(
+        "--dynamic-receiver-summary",
+        type=Path,
+        default=Path("data/processed/receiver_dynamic_context_summary.csv"),
+        help="Output path for dynamic-model receiver summaries when enabled.",
+    )
+    baseline.add_argument("--include-dynamic-features", action="store_true")
     add_split_arguments(baseline)
 
     position_baselines = subparsers.add_parser(
@@ -114,6 +126,7 @@ def main() -> None:
         default=25,
         help="Minimum player routes required in each receiver summary.",
     )
+    position_baselines.add_argument("--include-dynamic-features", action="store_true")
     add_split_arguments(position_baselines)
 
     stability = subparsers.add_parser(
@@ -147,7 +160,12 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "build-route-table":
-        build_route_table(args.data_dir, args.output, args.weeks)
+        build_route_table(
+            args.data_dir,
+            args.output,
+            args.weeks,
+            include_dynamic_features=args.include_dynamic_features,
+        )
     elif args.command == "fit-baselines":
         fit_baselines(
             args.route_table,
@@ -160,6 +178,8 @@ def main() -> None:
             args.seed,
             args.train_fraction,
             args.validation_fraction,
+            include_dynamic_features=args.include_dynamic_features,
+            dynamic_receiver_summary_path=args.dynamic_receiver_summary,
         )
     elif args.command == "fit-position-baselines":
         fit_position_baselines(
@@ -171,6 +191,7 @@ def main() -> None:
             args.seed,
             args.train_fraction,
             args.validation_fraction,
+            args.include_dynamic_features,
         )
     elif args.command == "split-half-stability":
         rows = read_csv_rows(args.predictions)
@@ -195,11 +216,22 @@ def fit_baselines(
     train_fraction: float = 0.70,
     validation_fraction: float = 0.15,
     precomputed_splits: dict[str, list[dict[str, str]]] | None = None,
+    include_dynamic_features: bool = False,
+    dynamic_receiver_summary_path: Path | None = None,
 ) -> None:
     rows = read_csv_rows(route_table)
     rows = filter_rows(rows, position=position)
     if not rows:
         raise ValueError(f"No route rows available for position={position!r}")
+    if include_dynamic_features:
+        from .feature_schema import DYNAMIC_CONTEXT_FEATURES
+
+        missing = [feature for feature in DYNAMIC_CONTEXT_FEATURES if feature not in rows[0]]
+        if missing:
+            raise ValueError(
+                "Dynamic model requested, but the route table is missing dynamic features. "
+                "Rebuild it with build-route-table --include-dynamic-features."
+            )
     if precomputed_splits is None:
         splits = split_rows(
             rows,
@@ -213,7 +245,9 @@ def fit_baselines(
             split: filter_rows(split_rows_data, position=position)
             for split, split_rows_data in precomputed_splits.items()
         }
-    models = fit_models(splits["train"])
+    models = fit_models(
+        splits["train"], include_dynamic_context=include_dynamic_features
+    )
     metrics_rows = evaluate_models(models, splits)
     scoring_model = next(model for model in models if model.name == "ridge_context")
 
@@ -228,6 +262,20 @@ def fit_baselines(
         min_routes=min_routes,
         position=position,
     )
+    if include_dynamic_features:
+        dynamic_model = next(
+            model for model in models if model.name == "ridge_dynamic_context"
+        )
+        dynamic_summary_path = dynamic_receiver_summary_path or receiver_summary_path.with_name(
+            receiver_summary_path.stem + "_dynamic_context.csv"
+        )
+        write_receiver_summary(
+            dynamic_summary_path,
+            summary_rows,
+            dynamic_model,
+            min_routes=min_routes,
+            position=position,
+        )
 
     label = position or "ALL"
     print(f"baseline metrics ({label})")
@@ -239,6 +287,8 @@ def fit_baselines(
             )
     print(f"predictions: {predictions_path}")
     print(f"receiver summary: {receiver_summary_path}")
+    if include_dynamic_features:
+        print(f"dynamic receiver summary: {dynamic_summary_path}")
     print(f"metrics: {metrics_path}")
 
 
@@ -251,6 +301,7 @@ def fit_position_baselines(
     seed: int = 42,
     train_fraction: float = 0.70,
     validation_fraction: float = 0.15,
+    include_dynamic_features: bool = False,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = read_csv_rows(route_table)
@@ -270,6 +321,10 @@ def fit_position_baselines(
         min_routes=min_routes,
         split_strategy=split_strategy,
         precomputed_splits=all_splits,
+        include_dynamic_features=include_dynamic_features,
+        dynamic_receiver_summary_path=(
+            output_dir / "receiver_dynamic_context_summary_all.csv"
+        ),
     )
     for position in positions:
         suffix = position.lower()
@@ -282,6 +337,10 @@ def fit_position_baselines(
             min_routes=min_routes,
             split_strategy=split_strategy,
             precomputed_splits=all_splits,
+            include_dynamic_features=include_dynamic_features,
+            dynamic_receiver_summary_path=(
+                output_dir / f"receiver_dynamic_context_summary_{suffix}.csv"
+            ),
         )
 
 

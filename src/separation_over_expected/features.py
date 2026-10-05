@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import csv
 import math
+import statistics
 from collections import defaultdict
 from pathlib import Path
 
-from .utils import fmt, normalize_xy
+from .feature_schema import (
+    DYNAMIC_CONTEXT_FEATURES,
+    DYNAMIC_DEFENDER_RANKS,
+    DYNAMIC_DEFENDER_SUMMARIES,
+)
+from .utils import fmt, normalize_xy, parse_float
 
 
 ROUTE_TABLE_COLUMNS = [
@@ -73,7 +79,12 @@ ROUTE_TABLE_COLUMNS = [
 ]
 
 
-def build_route_table(data_dir: Path, output_path: Path, weeks: list[int]) -> None:
+def build_route_table(
+    data_dir: Path,
+    output_path: Path,
+    weeks: list[int],
+    include_dynamic_features: bool = False,
+) -> None:
     plays = read_plays(data_dir / "plays.csv")
     players = read_players(data_dir / "players.csv")
     routes_by_play, coverage_by_play = read_pff_roles(data_dir / "pffScoutingData.csv")
@@ -81,8 +92,11 @@ def build_route_table(data_dir: Path, output_path: Path, weeks: list[int]) -> No
     output_path.parent.mkdir(parents=True, exist_ok=True)
     total_rows = 0
     total_plays = 0
+    columns = ROUTE_TABLE_COLUMNS + (
+        list(DYNAMIC_CONTEXT_FEATURES) if include_dynamic_features else []
+    )
     with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=ROUTE_TABLE_COLUMNS)
+        writer = csv.DictWriter(f, fieldnames=columns)
         writer.writeheader()
         for week in weeks:
             week_path = data_dir / f"week{week}.csv"
@@ -98,40 +112,81 @@ def build_route_table(data_dir: Path, output_path: Path, weeks: list[int]) -> No
                 and key in routes_by_play
                 and key in coverage_by_play
             }
-            frame_positions = read_selected_frames(week_path, eligible_keys, event_frames)
-
             week_rows = 0
-            for key in sorted(eligible_keys):
-                play = plays.get(key)
-                if play is None:
-                    continue
-                frames = event_frames[key]
-                snap_frame = frames["snap"]
-                release_frame = frames["release"]
-                snap_positions = frame_positions.get((key[0], key[1], snap_frame), {})
-                release_positions = frame_positions.get((key[0], key[1], release_frame), {})
-                if not snap_positions or not release_positions:
-                    continue
-
-                play_direction = frame_play_direction(snap_positions)
-                for route in routes_by_play[key]:
-                    row = make_route_row(
-                        key=key,
-                        week=week,
-                        route=route,
-                        play=play,
-                        players=players,
-                        coverage_ids=coverage_by_play[key],
-                        snap_frame=snap_frame,
-                        release_frame=release_frame,
-                        snap_positions=snap_positions,
-                        release_positions=release_positions,
-                        play_direction=play_direction,
-                    )
-                    if row is None:
+            if include_dynamic_features:
+                play_trajectories = iter_play_trajectories(
+                    week_path,
+                    eligible_keys,
+                    event_frames,
+                    routes_by_play,
+                    coverage_by_play,
+                )
+                for key, trajectory in play_trajectories:
+                    play = plays.get(key)
+                    if play is None:
                         continue
-                    writer.writerow(row)
-                    week_rows += 1
+                    frames = event_frames[key]
+                    snap_frame = frames["snap"]
+                    release_frame = frames["release"]
+                    snap_positions = trajectory.get(snap_frame, {})
+                    release_positions = trajectory.get(release_frame, {})
+                    if not snap_positions or not release_positions:
+                        continue
+                    play_direction = frame_play_direction(snap_positions)
+                    for route in routes_by_play[key]:
+                        row = make_route_row(
+                            key=key,
+                            week=week,
+                            route=route,
+                            play=play,
+                            players=players,
+                            coverage_ids=coverage_by_play[key],
+                            snap_frame=snap_frame,
+                            release_frame=release_frame,
+                            snap_positions=snap_positions,
+                            release_positions=release_positions,
+                            play_direction=play_direction,
+                            dynamic_trajectory=trajectory,
+                        )
+                        if row is None:
+                            continue
+                        writer.writerow(row)
+                        week_rows += 1
+            else:
+                frame_positions = read_selected_frames(
+                    week_path, eligible_keys, event_frames
+                )
+                for key in sorted(eligible_keys):
+                    play = plays.get(key)
+                    if play is None:
+                        continue
+                    frames = event_frames[key]
+                    snap_frame = frames["snap"]
+                    release_frame = frames["release"]
+                    snap_positions = frame_positions.get((key[0], key[1], snap_frame), {})
+                    release_positions = frame_positions.get((key[0], key[1], release_frame), {})
+                    if not snap_positions or not release_positions:
+                        continue
+
+                    play_direction = frame_play_direction(snap_positions)
+                    for route in routes_by_play[key]:
+                        row = make_route_row(
+                            key=key,
+                            week=week,
+                            route=route,
+                            play=play,
+                            players=players,
+                            coverage_ids=coverage_by_play[key],
+                            snap_frame=snap_frame,
+                            release_frame=release_frame,
+                            snap_positions=snap_positions,
+                            release_positions=release_positions,
+                            play_direction=play_direction,
+                        )
+                        if row is None:
+                            continue
+                        writer.writerow(row)
+                        week_rows += 1
             total_rows += week_rows
             total_plays += len(eligible_keys)
             print(
@@ -154,6 +209,7 @@ def make_route_row(
     snap_positions: dict[str, dict[str, float | str]],
     release_positions: dict[str, dict[str, float | str]],
     play_direction: str,
+    dynamic_trajectory: dict[int, dict[str, dict[str, float | str]]] | None = None,
 ) -> dict[str, str] | None:
     rid = route["nflId"]
     if rid not in snap_positions or rid not in release_positions:
@@ -187,7 +243,7 @@ def make_route_row(
         play_direction=play_direction,
     )
     player = players.get(rid, {})
-    return {
+    row = {
         "gameId": key[0],
         "playId": key[1],
         "nflId": rid,
@@ -238,6 +294,166 @@ def make_route_row(
         "nearest_defender_dy_release": fmt(release_def_norm[1] - release_norm[1]),
         **snap_context,
     }
+    if dynamic_trajectory is not None:
+        row.update(
+            dynamic_defender_features(
+                trajectory=dynamic_trajectory,
+                snap_frame=snap_frame,
+                release_frame=release_frame,
+                snap_positions=snap_positions,
+                coverage_ids=coverage_ids,
+                receiver=snap,
+                play_direction=play_direction,
+            )
+        )
+    return row
+
+
+def iter_play_trajectories(
+    path: Path,
+    eligible_keys: set[tuple[str, str]],
+    event_frames: dict[tuple[str, str], dict[str, int]],
+    routes_by_play: dict[tuple[str, str], list[dict[str, str]]],
+    coverage_by_play: dict[tuple[str, str], set[str]],
+):
+    """Yield pre-release player frames one play at a time to bound memory use."""
+    current_key: tuple[str, str] | None = None
+    positions_by_frame: dict[int, dict[str, dict[str, float | str]]] = defaultdict(dict)
+    seen_keys: set[tuple[str, str]] = set()
+    participants_by_play = {
+        key: coverage_by_play[key] | {route["nflId"] for route in routes_by_play[key]}
+        for key in eligible_keys
+    }
+
+    with path.open(newline="") as f:
+        for row in csv.DictReader(f):
+            key = (row["gameId"], row["playId"])
+            if key != current_key:
+                if current_key in eligible_keys:
+                    yield current_key, dict(positions_by_frame)
+                if key in seen_keys:
+                    raise ValueError(
+                        f"Tracking rows for play {key} are not contiguous in {path}"
+                    )
+                if current_key is not None:
+                    seen_keys.add(current_key)
+                current_key = key
+                positions_by_frame = defaultdict(dict)
+
+            if key not in eligible_keys or row["team"] == "football":
+                continue
+            snap_frame = event_frames[key]["snap"]
+            release_frame = event_frames[key]["release"]
+            frame = int(row["frameId"])
+            if frame != release_frame and not snap_frame <= frame < release_frame:
+                continue
+            nfl_id = row["nflId"]
+            if nfl_id not in participants_by_play[key]:
+                continue
+            positions_by_frame[frame][nfl_id] = {
+                "nflId": nfl_id,
+                "x": float(row["x"]),
+                "y": float(row["y"]),
+                "s": parse_float(row["s"]),
+                "a": parse_float(row["a"]),
+                "dir": parse_float(row["dir"]),
+                "playDirection": row["playDirection"],
+            }
+
+    if current_key in eligible_keys:
+        yield current_key, dict(positions_by_frame)
+
+
+def dynamic_defender_features(
+    trajectory: dict[int, dict[str, dict[str, float | str]]],
+    snap_frame: int,
+    release_frame: int,
+    snap_positions: dict[str, dict[str, float | str]],
+    coverage_ids: set[str],
+    receiver: dict[str, float | str],
+    play_direction: str,
+) -> dict[str, str]:
+    rx = float(receiver["x"])
+    ry = float(receiver["y"])
+    ranked_defenders = []
+    for defender_id in coverage_ids:
+        defender = snap_positions.get(defender_id)
+        if defender is None:
+            continue
+        distance = math.dist(
+            (rx, ry), (float(defender["x"]), float(defender["y"]))
+        )
+        ranked_defenders.append((distance, defender_id))
+    ranked_defenders.sort(key=lambda item: (item[0], item[1]))
+
+    eligible_frames = sorted(
+        frame for frame in trajectory if snap_frame <= frame < release_frame
+    )
+    expected_frames = max(1, release_frame - snap_frame)
+    output: dict[str, str] = {}
+    for rank in DYNAMIC_DEFENDER_RANKS:
+        prefix = f"defender_{rank}_"
+        if len(ranked_defenders) < rank:
+            output.update({
+                f"{prefix}mean_speed_pre_release": "",
+                f"{prefix}max_speed_pre_release": "",
+                f"{prefix}mean_accel_pre_release": "",
+                f"{prefix}depth_displacement_pre_release": "",
+                f"{prefix}width_displacement_pre_release": "",
+                f"{prefix}path_length_pre_release": "",
+                f"{prefix}total_turn_degrees_pre_release": "",
+                f"{prefix}observed_fraction_pre_release": "0.000",
+            })
+            continue
+
+        defender_id = ranked_defenders[rank - 1][1]
+        samples = [
+            (frame, trajectory[frame][defender_id])
+            for frame in eligible_frames
+            if defender_id in trajectory[frame]
+        ]
+        observed_fraction = len(samples) / expected_frames
+        output[f"{prefix}observed_fraction_pre_release"] = fmt(
+            min(1.0, observed_fraction)
+        )
+        if not samples or observed_fraction < 0.8:
+            for summary in DYNAMIC_DEFENDER_SUMMARIES[:-1]:
+                output[f"{prefix}{summary}_pre_release"] = ""
+            continue
+
+        samples.sort(key=lambda item: item[0])
+        normalized = [
+            normalize_xy(
+                float(position["x"]), float(position["y"]), play_direction
+            )
+            for _, position in samples
+        ]
+        path_length = sum(
+            math.dist(left, right)
+            for left, right in zip(normalized, normalized[1:])
+        )
+        turn_degrees = sum(
+            abs(((float(current["dir"]) - float(previous["dir"]) + 180) % 360) - 180)
+            for (_, previous), (_, current) in zip(samples, samples[1:])
+        )
+        speeds = [float(position["s"]) for _, position in samples]
+        accelerations = [float(position["a"]) for _, position in samples]
+        first_x, first_y = normalized[0]
+        last_x, last_y = normalized[-1]
+        output.update(
+            {
+                f"{prefix}mean_speed_pre_release": fmt(statistics.fmean(speeds)),
+                f"{prefix}max_speed_pre_release": fmt(max(speeds)),
+                f"{prefix}mean_accel_pre_release": fmt(
+                    statistics.fmean(accelerations)
+                ),
+                f"{prefix}depth_displacement_pre_release": fmt(last_x - first_x),
+                f"{prefix}width_displacement_pre_release": fmt(last_y - first_y),
+                f"{prefix}path_length_pre_release": fmt(path_length),
+                f"{prefix}total_turn_degrees_pre_release": fmt(turn_degrees),
+            }
+        )
+    return output
 
 
 def read_plays(path: Path) -> dict[tuple[str, str], dict[str, str]]:

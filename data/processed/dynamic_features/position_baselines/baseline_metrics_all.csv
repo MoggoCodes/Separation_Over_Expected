@@ -1,0 +1,13 @@
+model,split,rows,mae,rmse,r2,bias,mean_actual,mean_predicted,n
+global_mean,train,24463,2.218,2.923,0.000,0.000,-2.263,-2.263,24463
+smoothed_group_mean,train,24463,2.165,2.848,0.051,-0.005,-2.263,-2.258,24463
+ridge_context,train,24463,1.701,2.357,0.350,0.000,-2.263,-2.263,24463
+ridge_dynamic_context,train,24463,1.681,2.323,0.369,0.000,-2.263,-2.263,24463
+global_mean,validation,4497,2.197,2.865,-0.000,-0.038,-2.301,-2.263,4497
+smoothed_group_mean,validation,4497,2.143,2.792,0.050,-0.052,-2.301,-2.250,4497
+ridge_context,validation,4497,1.717,2.339,0.334,-0.087,-2.301,-2.214,4497
+ridge_dynamic_context,validation,4497,1.694,2.298,0.357,-0.073,-2.301,-2.228,4497
+global_mean,test,6072,2.236,2.945,-0.001,0.087,-2.176,-2.263,6072
+smoothed_group_mean,test,6072,2.180,2.868,0.051,0.077,-2.176,-2.254,6072
+ridge_context,test,6072,1.746,2.392,0.340,0.039,-2.176,-2.215,6072
+ridge_dynamic_context,test,6072,1.733,2.359,0.358,0.033,-2.176,-2.209,6072

@@ -39,6 +39,10 @@ def write_predictions(
     fieldnames = [field for field in rows[0].keys() if field != "split"]
     for model in models:
         fieldnames.append(f"pred_delta_sep_{model.name}")
+    if any(model.name == "ridge_dynamic_context" for model in models):
+        fieldnames.extend(
+            ["soe_route_ridge_context", "soe_route_ridge_dynamic_context"]
+        )
     fieldnames.extend(["soe_route", "split"])
     write_csv(
         path,

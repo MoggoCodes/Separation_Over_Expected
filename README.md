@@ -169,6 +169,33 @@ The 122 eligible games split into 85 train, 16 validation, and 21 test games. Th
 
 The game split lowers ridge R2 modestly for all routes, WRs, and TEs, while RB performance is nearly unchanged. This suggests the route-level split may be somewhat optimistic, especially for WRs, but the test samples also differ, so it is a robustness comparison rather than a direct measurement of leakage.
 
+## Dynamic Defender Context Experiment
+
+The dynamic-context experiment retains the same snap-to-release target and adds motion summaries for the three PFF coverage defenders nearest each route runner at the snap. Defender identities stay fixed throughout the route; features summarize speed, acceleration, normalized displacement, path length, heading change, and frame coverage before release. The release frame itself is excluded from these dynamic summaries. Missing dynamic values are imputed with training-set means.
+
+Build the extended route table and fit the static and dynamic ridge models on the same game-grouped split:
+
+```bash
+uv run separation-over-expected build-route-table \
+  --data-dir ../data/big_data_bowl_2023 \
+  --output data/processed/dynamic_features/route_level_snap_to_release_dynamic.csv \
+  --include-dynamic-features
+
+uv run separation-over-expected fit-position-baselines \
+  --route-table data/processed/dynamic_features/route_level_snap_to_release_dynamic.csv \
+  --output-dir data/processed/dynamic_features/position_baselines \
+  --positions WR TE RB \
+  --include-dynamic-features \
+  --split-strategy game \
+  --seed 42
+```
+
+On the held-out game test set, the WR ridge model improves from R2 0.479 / RMSE 1.967 to R2 0.500 / RMSE 1.928. The dynamic model also improves test R2 for pooled routes, TEs, and RBs. The static scores exactly reproduce the prior game-split metrics, which confirms that adding these columns did not change the target, route population, or split. These are predictive gains, not causal attribution: defensive motion can reflect coverage, route combinations, pressure, and play design as well as receiver behavior.
+
+Further checks temper that result. On WR validation routes, using the nearest defender alone gives RMSE 1.820; adding the second and third defenders moves it only to 1.813 and 1.812. All three defenders have complete tracking in this dataset, so changing the 80/90/100% frame-coverage threshold has no effect. The aggregate validation gain is small and varies by subgroup. A split-half validation-game check gives a receiver residual correlation of -0.136 for 13 eligible receivers, with a wide 95% bootstrap interval of -0.634 to 0.371. This is too uncertain to support stable player rankings; the dynamic features currently show clearer value for route-level prediction than for player evaluation.
+
+`notebooks/07_dynamic_context_features.ipynb` documents the feature construction, data and split checks, static-versus-dynamic results, and an illustrative route-separation trajectory. The chart is a diagnostic only; time-varying nearest-defender separation is not used as a model input.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -181,3 +208,4 @@ The game split lowers ridge R2 modestly for all routes, WRs, and TEs, while RB p
 - `notebooks/04_coverage_context_features.ipynb`: experiment notebook showing that simple snap-level coverage context does not materially improve WR performance or stability
 - `notebooks/05_random_split_model_evaluation.ipynb`: comparison of season-wide random-split results with the week-based evaluation
 - `notebooks/06_game_grouped_validation.ipynb`: comparison of route-random and game-grouped season-wide evaluation
+- `notebooks/07_dynamic_context_features.ipynb`: pre-release defender-motion feature experiment and model comparison
