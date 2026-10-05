@@ -6,11 +6,16 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
-from .feature_schema import DYNAMIC_CONTEXT_FEATURES, POCKET_CONTEXT_FEATURES
+from .feature_schema import (
+    DYNAMIC_CONTEXT_FEATURES,
+    POCKET_CONTEXT_FEATURES,
+    PRESSURE_CONTEXT_FEATURES,
+)
 from .models import (
     RidgeContextModel,
     RidgeDynamicContextModel,
     RidgePocketContextModel,
+    RidgePressureContextModel,
     regression_metrics,
     target,
 )
@@ -62,6 +67,7 @@ def cross_validate_position(
     min_routes_per_half: int = 20,
     bootstrap_samples: int = 2000,
     include_pocket_context: bool = False,
+    include_pressure_context: bool = False,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     """Return out-of-game predictions, model metrics, player-half scores, and stability metrics."""
     rows = [row for row in rows if row["officialPosition"] == position]
@@ -70,11 +76,13 @@ def cross_validate_position(
     required_features = list(DYNAMIC_CONTEXT_FEATURES)
     if include_pocket_context:
         required_features.extend(POCKET_CONTEXT_FEATURES)
+    if include_pressure_context:
+        required_features.extend(PRESSURE_CONTEXT_FEATURES)
     missing = [feature for feature in required_features if feature not in rows[0]]
     if missing:
         rebuild_flag = (
             "--include-pocket-features"
-            if include_pocket_context
+            if include_pocket_context or include_pressure_context
             else "--include-dynamic-features"
         )
         raise ValueError(
@@ -85,6 +93,8 @@ def cross_validate_position(
     fold_by_game = assign_game_folds(rows, n_folds=n_folds, seed=seed)
     half_by_game = assign_game_halves(rows, seed=seed + 10_000)
     model_names = ["ridge_context", "ridge_dynamic_context"]
+    if include_pressure_context:
+        model_names.append("ridge_pressure_context")
     if include_pocket_context:
         model_names.append("ridge_pocket_context")
     predictions: list[dict[str, str]] = []
@@ -103,10 +113,14 @@ def cross_validate_position(
         dynamic_model = RidgeDynamicContextModel(l2=25.0, max_levels_per_feature=30)
         if include_pocket_context:
             pocket_model = RidgePocketContextModel(l2=25.0, max_levels_per_feature=30)
+        if include_pressure_context:
+            pressure_model = RidgePressureContextModel(l2=25.0, max_levels_per_feature=30)
         static_model.fit(train_rows)
         dynamic_model.fit(train_rows)
         if include_pocket_context:
             pocket_model.fit(train_rows)
+        if include_pressure_context:
+            pressure_model.fit(train_rows)
 
         actual = [target(row) for row in heldout_rows]
         static_predictions = [static_model.predict(row) for row in heldout_rows]
@@ -118,6 +132,10 @@ def cross_validate_position(
         if include_pocket_context:
             fold_predictions["ridge_pocket_context"] = [
                 pocket_model.predict(row) for row in heldout_rows
+            ]
+        if include_pressure_context:
+            fold_predictions["ridge_pressure_context"] = [
+                pressure_model.predict(row) for row in heldout_rows
             ]
         for model_name, values in fold_predictions.items():
             fold_metrics.append(
@@ -297,6 +315,8 @@ def reliability_metrics(
         comparison_name = {
             ("ridge_context", "ridge_dynamic_context"): "dynamic_minus_static",
             ("ridge_dynamic_context", "ridge_pocket_context"): "pocket_minus_dynamic",
+            ("ridge_dynamic_context", "ridge_pressure_context"): "pressure_minus_dynamic",
+            ("ridge_pressure_context", "ridge_pocket_context"): "pocket_minus_pressure",
         }.get((baseline, augmented), f"{augmented}_minus_{baseline}")
         results.append(
             {

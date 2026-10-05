@@ -235,6 +235,22 @@ Across 20,415 out-of-fold WR routes, pocket context changes route RMSE from 1.86
 
 `notebooks/09_pre_release_pocket_context.ipynb` documents the feature coverage, fold-level comparisons, receiver reliability, and interpretation.
 
+## Pressure-Only Feature Experiment
+
+To isolate the pressure signal from QB movement, an additional ridge model uses only six pass-rusher proximity/closing features, alongside the existing static, dynamic, and broad pocket models. The route table built for the pocket experiment already contains these fields. Run the same five-fold game-grouped comparison with:
+
+```bash
+uv run separation-over-expected cross-validate-position \
+  --route-table data/processed/dynamic_features/pocket_context/route_level_snap_to_release_pocket.csv \
+  --output-dir data/processed/dynamic_features/pressure_context/cross_validation \
+  --position WR --folds 5 --seed 42 --min-routes-per-half 20 \
+  --bootstrap-samples 2000 --include-pocket-features --include-pressure-context
+```
+
+Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² over dynamic context (1.869 to 1.867; 0.508 to 0.509), but receiver split-half Pearson reliability falls from 0.452 to 0.434. The paired difference is -0.018 (95% bootstrap interval -0.035 to 0.005), so there is no clear reliability change. The broad pocket model gives similar route prediction but lower receiver reliability than pressure-only. Keep dynamic context as the current preferred model; the modest route-level gain does not establish better player evaluation.
+
+`notebooks/10_pressure_only_features.ipynb` documents the feature subset, fold metrics, and receiver reliability comparison.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -250,3 +266,4 @@ Across 20,415 out-of-fold WR routes, pocket context changes route RMSE from 1.86
 - `notebooks/07_dynamic_context_features.ipynb`: pre-release defender-motion feature experiment and model comparison
 - `notebooks/08_game_grouped_oof_receiver_reliability.ipynb`: five-fold game-grouped out-of-fold predictions and receiver SOE stability
 - `notebooks/09_pre_release_pocket_context.ipynb`: pre-release QB/pocket feature experiment and its route- and receiver-level results
+- `notebooks/10_pressure_only_features.ipynb`: pressure-only feature subset compared with dynamic and broad pocket context

@@ -58,6 +58,25 @@ class GameGroupingTests(unittest.TestCase):
         self.assertAlmostEqual(float(metrics[1]["pearson"]), 1.0)
         self.assertEqual(metrics[2]["comparison"], "dynamic_minus_static")
 
+    def test_reliability_names_pressure_comparison(self):
+        players = []
+        for index in range(5):
+            row = {"nflId": str(index), "displayName": f"Player {index}"}
+            for model, multiplier in (
+                ("ridge_dynamic_context", 1.0),
+                ("ridge_pressure_context", 1.5),
+            ):
+                row[f"mean_soe_{model}_A"] = str(index * multiplier)
+                row[f"mean_soe_{model}_B"] = str(index * multiplier + 0.1)
+            players.append(row)
+        metrics = reliability_metrics(
+            players,
+            bootstrap_samples=100,
+            seed=4,
+            model_names=("ridge_dynamic_context", "ridge_pressure_context"),
+        )
+        self.assertEqual(metrics[-1]["comparison"], "pressure_minus_dynamic")
+
 
 if __name__ == "__main__":
     unittest.main()

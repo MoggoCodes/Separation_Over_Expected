@@ -192,6 +192,11 @@ def main() -> None:
         action="store_true",
         help="Fit an additional ridge model with quarterback and pressure context.",
     )
+    cross_validation.add_argument(
+        "--include-pressure-context",
+        action="store_true",
+        help="Fit an additional ridge model using pass-rusher proximity and closing features only.",
+    )
 
     args = parser.parse_args()
     if args.command == "build-route-table":
@@ -248,6 +253,7 @@ def main() -> None:
             min_routes_per_half=args.min_routes_per_half,
             bootstrap_samples=args.bootstrap_samples,
             include_pocket_context=args.include_pocket_features,
+            include_pressure_context=args.include_pressure_context,
         )
         write_oof_outputs(
             args.output_dir,
