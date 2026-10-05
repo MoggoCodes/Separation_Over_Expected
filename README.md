@@ -196,6 +196,24 @@ Further checks temper that result. On WR validation routes, using the nearest de
 
 `notebooks/07_dynamic_context_features.ipynb` documents the feature construction, data and split checks, static-versus-dynamic results, and an illustrative route-separation trajectory. The chart is a diagnostic only; time-varying nearest-defender separation is not used as a model input.
 
+## Game-Grouped Out-of-Fold Receiver Reliability
+
+To test player-level consistency using more than one small validation subset, fit five game-grouped folds, stratified within week. Every WR route receives static and dynamic ridge predictions from a model that did not train on that route's game. The same routes are split into two balanced game halves for receiver SOE reliability:
+
+```bash
+uv run separation-over-expected cross-validate-position \
+  --route-table data/processed/dynamic_features/route_level_snap_to_release_dynamic.csv \
+  --output-dir data/processed/dynamic_features/cross_validation \
+  --position WR \
+  --folds 5 \
+  --seed 42 \
+  --min-routes-per-half 20
+```
+
+Across 20,415 WR routes, dynamic context modestly improves out-of-fold route prediction (RMSE 1.897 to 1.869; R2 0.493 to 0.508). Receiver split-half Pearson stability is 0.431 for static ridge and 0.452 for dynamic ridge across 115 eligible receivers. The paired dynamic-minus-static difference is 0.021 (95% bootstrap interval -0.033 to 0.054), so this does not establish stronger receiver evaluation; Spearman ranking stability is slightly lower for dynamic ridge. This is a within-season analysis, not year-to-year validation.
+
+`notebooks/08_game_grouped_oof_receiver_reliability.ipynb` shows fold coverage, route prediction metrics, receiver-level correlations, uncertainty intervals, and SOE scatterplots for the two game halves.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -209,3 +227,4 @@ Further checks temper that result. On WR validation routes, using the nearest de
 - `notebooks/05_random_split_model_evaluation.ipynb`: comparison of season-wide random-split results with the week-based evaluation
 - `notebooks/06_game_grouped_validation.ipynb`: comparison of route-random and game-grouped season-wide evaluation
 - `notebooks/07_dynamic_context_features.ipynb`: pre-release defender-motion feature experiment and model comparison
+- `notebooks/08_game_grouped_oof_receiver_reliability.ipynb`: five-fold game-grouped out-of-fold predictions and receiver SOE stability

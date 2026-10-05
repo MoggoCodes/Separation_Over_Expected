@@ -12,6 +12,7 @@ from .reports import (
     write_receiver_summary,
     write_split_half_stability,
 )
+from .validation import cross_validate_position, write_oof_outputs
 
 
 def main() -> None:
@@ -158,6 +159,30 @@ def main() -> None:
         help="Minimum routes required in weeks 1-4 and weeks 5-8.",
     )
 
+    cross_validation = subparsers.add_parser(
+        "cross-validate-position",
+        help="Create game-grouped out-of-fold predictions and receiver stability diagnostics.",
+    )
+    cross_validation.add_argument(
+        "--route-table",
+        type=Path,
+        default=Path("data/processed/dynamic_features/route_level_snap_to_release_dynamic.csv"),
+        help="Dynamic route-level CSV created by build-route-table.",
+    )
+    cross_validation.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/processed/dynamic_features/cross_validation"),
+        help="Output directory for out-of-fold predictions and reliability reports.",
+    )
+    cross_validation.add_argument(
+        "--position", choices=["WR", "TE", "RB", "FB"], default="WR"
+    )
+    cross_validation.add_argument("--folds", type=int, default=5)
+    cross_validation.add_argument("--seed", type=int, default=42)
+    cross_validation.add_argument("--min-routes-per-half", type=int, default=20)
+    cross_validation.add_argument("--bootstrap-samples", type=int, default=2000)
+
     args = parser.parse_args()
     if args.command == "build-route-table":
         build_route_table(
@@ -202,6 +227,27 @@ def main() -> None:
             min_routes_per_half=args.min_routes_per_half,
         )
         print(f"stability table: {args.output}")
+    elif args.command == "cross-validate-position":
+        rows = read_csv_rows(args.route_table)
+        predictions, metrics, player_rows, reliability = cross_validate_position(
+            rows,
+            position=args.position,
+            n_folds=args.folds,
+            seed=args.seed,
+            min_routes_per_half=args.min_routes_per_half,
+            bootstrap_samples=args.bootstrap_samples,
+        )
+        write_oof_outputs(
+            args.output_dir,
+            args.position,
+            predictions,
+            metrics,
+            player_rows,
+            reliability,
+        )
+        print(f"out-of-fold routes: {len(predictions):,}")
+        print(f"metrics: {args.output_dir / f'oof_metrics_{args.position.lower()}.csv'}")
+        print(f"receiver reliability: {args.output_dir / f'receiver_oof_reliability_{args.position.lower()}.csv'}")
 
 
 def fit_baselines(
