@@ -6,5 +6,8 @@ dist/
 wheels/
 *.egg-info
 
+# Derived rows from the non-commercial BDB 2026 tracking dataset
+data/processed/bdb2026/
+
 # Virtual environments
 .venv

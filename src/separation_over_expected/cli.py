@@ -13,6 +13,8 @@ from .reports import (
     write_split_half_stability,
 )
 from .validation import cross_validate_position, write_oof_outputs
+from .bdb2026 import build_bdb2026_dynamic_route_table, build_bdb2026_route_table
+from .cross_season import evaluate_cross_season_transfer, load_cross_season_wr_rows
 
 
 def main() -> None:
@@ -54,6 +56,75 @@ def main() -> None:
         action="store_true",
         help="Also add quarterback movement and PFF pass-rush pressure summaries before release.",
     )
+
+    build_2026 = subparsers.add_parser(
+        "build-bdb2026-route-table",
+        help="Build a route-level table from the 2023 BDB 2026 pre-throw inputs.",
+    )
+    build_2026.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("../data/big_data_bowl_2026"),
+        help="Directory containing train/input_2023_wXX.csv.",
+    )
+    build_2026.add_argument(
+        "--output",
+        type=Path,
+        default=Path("data/processed/bdb2026/route_level_input_window_2023.csv"),
+    )
+    build_2026.add_argument(
+        "--weeks",
+        nargs="*",
+        type=int,
+        help="Optional weeks to process; defaults to all available training weeks.",
+    )
+    build_2026.add_argument(
+        "--include-dynamic-features",
+        action="store_true",
+        help="Also summarize motion of the three nearest tagged coverage defenders.",
+    )
+
+    cross_season = subparsers.add_parser(
+        "compare-cross-season",
+        help="Evaluate a shared-feature WR ridge across the 2021 and 2023 tracking datasets.",
+    )
+    cross_season.add_argument(
+        "--legacy-route-table",
+        type=Path,
+        default=Path("data/processed/route_level_snap_to_release.csv"),
+    )
+    cross_season.add_argument(
+        "--bdb2026-route-table",
+        type=Path,
+        default=Path("data/processed/bdb2026/route_level_input_window_2023.csv"),
+    )
+    cross_season.add_argument(
+        "--nflverse-pbp",
+        type=Path,
+        default=Path("../data/big_data_bowl_2026/nflverse_play_by_play_2023.csv"),
+    )
+    cross_season.add_argument("--seed", type=int, default=42)
+
+    cross_season_dynamic = subparsers.add_parser(
+        "compare-cross-season-dynamic",
+        help="Compare common-feature static and dynamic WR ridge models across 2021 and 2023.",
+    )
+    cross_season_dynamic.add_argument(
+        "--legacy-route-table",
+        type=Path,
+        default=Path("data/processed/dynamic_features/route_level_snap_to_release_dynamic.csv"),
+    )
+    cross_season_dynamic.add_argument(
+        "--bdb2026-route-table",
+        type=Path,
+        default=Path("data/processed/bdb2026/route_level_input_window_2023_dynamic.csv"),
+    )
+    cross_season_dynamic.add_argument(
+        "--nflverse-pbp",
+        type=Path,
+        default=Path("../data/big_data_bowl_2026/nflverse_play_by_play_2023.csv"),
+    )
+    cross_season_dynamic.add_argument("--seed", type=int, default=42)
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -207,6 +278,51 @@ def main() -> None:
             include_dynamic_features=args.include_dynamic_features,
             include_pocket_features=args.include_pocket_features,
         )
+    elif args.command == "build-bdb2026-route-table":
+        builder = (
+            build_bdb2026_dynamic_route_table
+            if args.include_dynamic_features
+            else build_bdb2026_route_table
+        )
+        diagnostics = builder(args.data_dir, args.output, args.weeks)
+        print(f"BDB 2026 route table: {args.output}")
+        for name, value in diagnostics.items():
+            print(f"{name}: {value:,}")
+    elif args.command == "compare-cross-season":
+        old_rows, new_rows, diagnostics = load_cross_season_wr_rows(
+            args.legacy_route_table,
+            args.bdb2026_route_table,
+            args.nflverse_pbp,
+        )
+        print("cross-season data checks")
+        for name, value in diagnostics.items():
+            print(f"{name}: {value:,}")
+        print("cross-season model results")
+        for row in evaluate_cross_season_transfer(old_rows, new_rows, args.seed):
+            print(
+                f"{row['evaluation']}: {row['model']} n={row['n']} "
+                f"RMSE={row['rmse']} R2={row['r2']} MAE={row['mae']} "
+                f"bias={row['bias']}"
+            )
+    elif args.command == "compare-cross-season-dynamic":
+        old_rows, new_rows, diagnostics = load_cross_season_wr_rows(
+            args.legacy_route_table,
+            args.bdb2026_route_table,
+            args.nflverse_pbp,
+            require_dynamic=True,
+        )
+        print("dynamic cross-season data checks")
+        for name, value in diagnostics.items():
+            print(f"{name}: {value:,}")
+        print("dynamic cross-season model results")
+        for row in evaluate_cross_season_transfer(
+            old_rows, new_rows, args.seed, include_dynamic=True
+        ):
+            print(
+                f"{row['evaluation']}: {row['model']} n={row['n']} "
+                f"RMSE={row['rmse']} R2={row['r2']} MAE={row['mae']} "
+                f"bias={row['bias']}"
+            )
     elif args.command == "fit-baselines":
         fit_baselines(
             args.route_table,

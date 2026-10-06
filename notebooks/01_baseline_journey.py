@@ -112,6 +112,8 @@ metrics
 # %% [markdown]
 # The useful comparison is not whether the model is perfect. The useful comparison is whether context explains more than a naive average. If the context model reduces error on week 8, we have a workable first definition of expected separation creation.
 
+# Calibration is a separate check from R²: when the model predicts a particular separation change, does that change occur on average? The later game-grouped out-of-fold calibration analysis checks this directly with prediction-range and context-slice plots; see `14_model_calibration.ipynb`.
+
 # %%
 for row in metrics:
     if row["split"] in {"validation", "test"}:

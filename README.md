@@ -20,6 +20,72 @@ For the first version, "same situation" means the observable context available i
 
 This framing avoids claiming full receiver value. It asks a narrower question: given where the receiver started and how the defense was structured, did he create more or less separation before the quarterback released the ball than an average NFL route runner would have created?
 
+## BDB 2026 Training-Data Feasibility Pass
+
+The 2026 prediction competition's 2023 training inputs provide pre-throw tracking for targeted receivers, other route runners, and coverage defenders. The first extraction builds one row per route runner and measures nearest-coverage-defender separation from the first to the last input frame:
+
+```bash
+uv run separation-over-expected build-bdb2026-route-table \
+  --data-dir ../data/big_data_bowl_2026 \
+  --output data/processed/bdb2026/route_level_input_window_2023.csv
+```
+
+The current extraction contains 64,751 route rows from 14,107 usable plays across all 18 weeks. One additional play is omitted because coverage context is missing at an endpoint. It includes both targeted and untargeted route runners and excludes ball-landing coordinates and post-throw output tracks.
+
+The prediction inputs are described as pre-throw tracking and do not carry named `ball_snap` or `pass_forward` events, so the extracted outcome remains explicitly named `delta_sep_input_window`. A timing audit finds strong support that this is a snap-to-release-like sequence: the WR window median is 25 frames versus 27 in the event-anchored 2021 data; first-frame receiver speeds resemble 2021 snap speeds (93.1% versus 95.3% of WR rows below 0.5 yd/s); and 2,679 matched input/output player-play trajectories have a median boundary displacement of 0.454 yd. An [NFL/AWS Next Gen Stats presentation](https://d1.awsstatic.com/events/Summits/reinvent2023/PRO304_NFL-Next-Gen-Stats-Using-AI-ML-to-transform-fan-engagement.pdf) defines the corresponding pre-pass sequence as snap through release. Exact row-level event equivalence is still unavailable, so document that limitation in cross-season evaluation. This dataset also lacks down/distance, route labels, formation, and defender assignment, so the first expected-separation model must be limited to observed tracking context or joined to a reliable play-context source.
+
+`notebooks/12_bdb2026_training_data.ipynb` shows extraction diagnostics and route coverage; `notebooks/15_frame_timing_audit.ipynb` evaluates window length, initial speed, and input/output-boundary evidence.
+
+## Cross-Season Transfer Check
+
+We ran a preliminary WR transfer experiment from the original 2021 tracking sample to the 2023 BDB 2026 training inputs. The 2023 route rows were joined to [nflverse play-by-play](https://github.com/nflverse/nflverse-data) using the competition's game/play identifiers, adding down, yards to go, and field position. All 14,107 usable tracking plays joined; the offense-relative yardline derived from tracking coordinates matched nflverse exactly.
+
+Because the two route tables do not share every engineered variable, this experiment uses a reduced, static ridge model with only common fields: starting separation and location, nearest-defender leverage, receiver speed/acceleration, observed window length, down, distance, and field position. No receiver identifier is a model feature. Results:
+
+| Evaluation | Model | Routes | R² | RMSE (yd) | MAE (yd) |
+|---|---|---:|---:|---:|---:|
+| 2021 held-out games | Shared-feature ridge | 3,527 | 0.442 | 2.036 | 1.496 |
+| Train 2021, score 2023 | Shared-feature ridge | 38,002 | 0.448 | 1.959 | 1.483 |
+| 2023 held-out games | Shared-feature ridge | 6,361 | 0.458 | 1.921 | 1.476 |
+
+The transfer score is close to the within-2023 reference (RMSE +0.038 yd; R² -0.010), which is promising evidence that this shared-feature relationship carries across the samples. It does **not** yet establish that our preferred dynamic-defender model transfers: this is a smaller static model. The 2023 input window is strongly supported as snap-to-release-like by the timing audit, but named snap/release frame events are unavailable for direct confirmation. The samples also differ in season coverage (eight 2021 weeks versus the 2023 season), so treat this as encouraging external validation with a documented timing limitation, not definitive proof.
+
+Reproduce the check with:
+
+```bash
+uv run separation-over-expected compare-cross-season
+```
+
+`notebooks/13_cross_season_transfer.ipynb` documents the joined features, data checks, results, and interpretation. The Kaggle competition dataset description documents the pre-throw input and play-ID crosswalk to nflverse ([official data page](https://www.kaggle.com/competitions/nfl-big-data-bowl-2026-analytics/data)); `notebooks/15_frame_timing_audit.ipynb` assesses the snap-to-release timing alignment.
+
+## Dynamic Feature Transfer Check
+
+We also tested whether the dynamic defender-motion features transfer. The 2023 builder ranks the three nearest players tagged `Defensive Coverage` at the first input frame, holds those players fixed, and calculates the same eight pre-release motion summaries per defender as the 2021 pipeline. The final input frame is excluded. Since 2023 lacks several PFF charting, formation, and personnel fields used in our preferred model, we trained matched **common-feature** 2021 static and dynamic ridge models and scored both on the same 2023 WR routes.
+
+| Evaluation | Static RMSE | Dynamic RMSE | Static R² | Dynamic R² |
+|---|---:|---:|---:|---:|
+| 2021 game holdout | 2.036 | 1.960 | 0.442 | 0.483 |
+| Train 2021, score 2023 | 1.959 | 1.903 | 0.448 | 0.479 |
+| 2023 game holdout | 1.921 | 1.867 | 0.458 | 0.487 |
+
+The dynamic model lowers RMSE by about 0.06 yd on both the 2021-to-2023 transfer set and the within-2023 game holdout. Paired game-cluster bootstrap intervals for dynamic-minus-static RMSE are [-0.062, -0.052] yd on the transfer set and [-0.064, -0.044] yd on the 2023 holdout. This supports portable predictive information in the dynamic feature block. It is not a test of the full existing dynamic model, and the BDB `Defensive Coverage` role is only an approximation to the 2021 PFF coverage assignment.
+
+Rebuild and reproduce with:
+
+```bash
+uv run separation-over-expected build-bdb2026-route-table \
+  --include-dynamic-features \
+  --output data/processed/bdb2026/route_level_input_window_2023_dynamic.csv
+
+uv run separation-over-expected compare-cross-season-dynamic
+```
+
+`notebooks/16_dynamic_cross_season_transfer.ipynb` shows feature support, same-season comparisons, transferred scores, and game-cluster uncertainty.
+
+## Calibration Diagnostics
+
+The model is intended to estimate expected route-level separation change, so evaluation should check more than R². `notebooks/14_model_calibration.ipynb` uses game-grouped out-of-fold predictions from the current dynamic WR ridge model to compare mean observed and predicted separation change across prediction deciles. Its calibration chart includes game-cluster bootstrap intervals, and a second plot checks residual bias across starting-separation and observed-window-duration groups. In this run, the mean prediction is -2.342 yards versus -2.341 observed, with calibration slope 0.997 and intercept -0.006; prediction-decile mean residuals range from about -0.07 to +0.10 yards. The decile view assesses average calibration; the context plot helps reveal local bias. These results support the route-level baseline, but do not establish player-level reliability.
+
 ## Build the Route Table
 
 From the project directory:
@@ -254,6 +320,7 @@ Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² o
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
+- `src/separation_over_expected/bdb2026.py`: route-level extraction from BDB 2026 pre-throw training inputs
 - `src/separation_over_expected/models.py`: reusable baseline models, data splits, predictions, and metrics
 - `src/separation_over_expected/reports.py`: CSV reading/writing and receiver-level summaries
 - `src/separation_over_expected/cli.py`: thin command-line wrapper around the reusable modules
@@ -267,3 +334,8 @@ Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² o
 - `notebooks/08_game_grouped_oof_receiver_reliability.ipynb`: five-fold game-grouped out-of-fold predictions and receiver SOE stability
 - `notebooks/09_pre_release_pocket_context.ipynb`: pre-release QB/pocket feature experiment and its route- and receiver-level results
 - `notebooks/10_pressure_only_features.ipynb`: pressure-only feature subset compared with dynamic and broad pocket context
+- `notebooks/12_bdb2026_training_data.ipynb`: feasibility analysis of BDB 2026's 2023 training tracking inputs
+- `notebooks/13_cross_season_transfer.ipynb`: preliminary shared-feature model transfer from 2021 tracking data to 2023
+- `notebooks/14_model_calibration.ipynb`: game-grouped out-of-fold calibration and context-slice diagnostics for the dynamic WR model
+- `notebooks/15_frame_timing_audit.ipynb`: empirical and source-based audit of the 2023 pre-throw window against the 2021 snap-to-release interval
+- `notebooks/16_dynamic_cross_season_transfer.ipynb`: frozen 2021 common-feature static/dynamic ridge evaluation on 2023 routes
