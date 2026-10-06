@@ -334,10 +334,21 @@ class RidgeContextModel:
                 for j, xj in features:
                     xtx[i][j] += xi * xj
 
-        for i in range(1, p):
-            xtx[i][i] += self.l2
+        self._xtx_unregularized = xtx
+        self._xty = xty
+        self.refit_l2(self.l2)
 
-        self.coefficients = solve_linear_system(xtx, xty)
+    def refit_l2(self, l2: float) -> None:
+        """Re-solve a fitted ridge model at a new penalty using cached X'X/X'y."""
+        if l2 < 0:
+            raise ValueError("l2 must be non-negative")
+        if not hasattr(self, "_xtx_unregularized"):
+            raise RuntimeError("Fit the model before changing its l2 penalty")
+        matrix = [row[:] for row in self._xtx_unregularized]
+        for index in range(1, len(matrix)):
+            matrix[index][index] += l2
+        self.l2 = l2
+        self.coefficients = solve_linear_system(matrix, self._xty)
 
     def predict(self, row: dict[str, str]) -> float:
         return sum(self.coefficients[i] * value for i, value in self.features(row))

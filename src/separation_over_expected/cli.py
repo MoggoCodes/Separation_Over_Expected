@@ -20,6 +20,7 @@ from .receiver_reliability import (
     cross_season_receiver_predictions,
     summarize_cross_season_receivers,
 )
+from .ridge_comparison import DEFAULT_L2_VALUES, compare_ridge_specifications
 
 
 def main() -> None:
@@ -160,6 +161,33 @@ def main() -> None:
     receiver_reliability.add_argument("--min-games", type=int, default=5)
     receiver_reliability.add_argument("--bootstrap-samples", type=int, default=2000)
     receiver_reliability.add_argument("--seed", type=int, default=42)
+
+    ridge_comparison = subparsers.add_parser(
+        "compare-ridge-specifications",
+        help="Compare ridge feature blocks and l2 penalties on grouped OOF routes.",
+    )
+    ridge_comparison.add_argument(
+        "--route-table",
+        type=Path,
+        default=Path("data/processed/dynamic_features/pocket_context/route_level_snap_to_release_pocket.csv"),
+        help="Dynamic route table containing both pocket and pressure features.",
+    )
+    ridge_comparison.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/processed/ridge_comparison"),
+    )
+    ridge_comparison.add_argument(
+        "--l2-values",
+        nargs="+",
+        type=float,
+        default=list(DEFAULT_L2_VALUES),
+        help="Ridge penalties to compare; include 25 for the fixed reference candidate.",
+    )
+    ridge_comparison.add_argument("--folds", type=int, default=5)
+    ridge_comparison.add_argument("--min-routes-per-half", type=int, default=20)
+    ridge_comparison.add_argument("--bootstrap-samples", type=int, default=2000)
+    ridge_comparison.add_argument("--seed", type=int, default=42)
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -392,6 +420,48 @@ def main() -> None:
         print("cross-season receiver correlations")
         for row in reliability:
             print(row)
+        print(f"outputs: {args.output_dir}")
+    elif args.command == "compare-ridge-specifications":
+        outputs = compare_ridge_specifications(
+            read_csv_rows(args.route_table),
+            l2_values=tuple(args.l2_values),
+            n_folds=args.folds,
+            min_routes_per_half=args.min_routes_per_half,
+            bootstrap_samples=args.bootstrap_samples,
+            seed=args.seed,
+        )
+        predictions, metrics, folds, deciles, player_halves, reliability = outputs
+        if not reliability:
+            raise ValueError(
+                "Fewer than three receivers met the split-half route threshold"
+            )
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        for filename, table in (
+            ("route_oof_predictions.csv", predictions),
+            ("candidate_metrics.csv", metrics),
+            ("fold_metrics.csv", folds),
+            ("calibration_deciles.csv", deciles),
+            ("receiver_half_scores.csv", player_halves),
+            ("receiver_reliability.csv", reliability),
+        ):
+            write_csv(args.output_dir / filename, list(table[0]), table)
+        print("grouped OOF ridge candidate scores (lower RMSE is better)")
+        for row in sorted(metrics, key=lambda item: float(item["rmse"])):
+            print(
+                f"{row['candidate']}: RMSE={row['rmse']} MAE={row['mae']} "
+                f"R2={row['r2']} slope={row['calibration_slope']} "
+                f"decile_bias={row['mean_absolute_decile_bias']} "
+                f"ΔRMSE={row['rmse_delta_vs_dynamic_l2_25']} "
+                f"[{row['rmse_delta_lower_95']}, {row['rmse_delta_upper_95']}]"
+            )
+        print("receiver split-half reliability")
+        for row in sorted(reliability, key=lambda item: float(item["pearson"]), reverse=True):
+            print(
+                f"{row['candidate']}: Pearson={row['pearson']} "
+                f"[{row['pearson_ci_lower']}, {row['pearson_ci_upper']}], "
+                f"Δ vs dynamic_l2_25={row['pearson_delta_vs_dynamic_l2_25']} "
+                f"[{row['pearson_delta_lower_95']}, {row['pearson_delta_upper_95']}]"
+            )
         print(f"outputs: {args.output_dir}")
     elif args.command == "fit-baselines":
         fit_baselines(
