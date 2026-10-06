@@ -8,6 +8,7 @@ wheels/
 
 # Derived rows from the non-commercial BDB 2026 tracking dataset
 data/processed/bdb2026/
+data/processed/cross_season_receiver_reliability/
 
 # Virtual environments
 .venv

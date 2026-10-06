@@ -132,6 +132,7 @@ def load_cross_season_wr_rows(
                     "playId": row["playId"],
                     "week": row["week"],
                     "nflId": row["nflId"],
+                    "displayName": row.get("displayName", ""),
                     "officialPosition": "WR",
                     "delta_sep": row["delta_sep_input_window"],
                     "sep_snap": row["sep_first_input"],

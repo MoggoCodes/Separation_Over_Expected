@@ -7,6 +7,7 @@ from .features import build_route_table
 from .models import evaluate_models, filter_rows, fit_models, split_rows
 from .reports import (
     read_csv_rows,
+    write_csv,
     write_metrics,
     write_predictions,
     write_receiver_summary,
@@ -15,6 +16,10 @@ from .reports import (
 from .validation import cross_validate_position, write_oof_outputs
 from .bdb2026 import build_bdb2026_dynamic_route_table, build_bdb2026_route_table
 from .cross_season import evaluate_cross_season_transfer, load_cross_season_wr_rows
+from .receiver_reliability import (
+    cross_season_receiver_predictions,
+    summarize_cross_season_receivers,
+)
 
 
 def main() -> None:
@@ -125,6 +130,36 @@ def main() -> None:
         default=Path("../data/big_data_bowl_2026/nflverse_play_by_play_2023.csv"),
     )
     cross_season_dynamic.add_argument("--seed", type=int, default=42)
+
+    receiver_reliability = subparsers.add_parser(
+        "cross-season-receiver-reliability",
+        help="Compare receiver residual performance from 2021 to 2023.",
+    )
+    receiver_reliability.add_argument(
+        "--legacy-route-table",
+        type=Path,
+        default=Path("data/processed/dynamic_features/route_level_snap_to_release_dynamic.csv"),
+    )
+    receiver_reliability.add_argument(
+        "--bdb2026-route-table",
+        type=Path,
+        default=Path("data/processed/bdb2026/route_level_input_window_2023_dynamic.csv"),
+    )
+    receiver_reliability.add_argument(
+        "--nflverse-pbp",
+        type=Path,
+        default=Path("../data/big_data_bowl_2026/nflverse_play_by_play_2023.csv"),
+    )
+    receiver_reliability.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/processed/cross_season_receiver_reliability"),
+    )
+    receiver_reliability.add_argument("--folds", type=int, default=5)
+    receiver_reliability.add_argument("--min-routes", type=int, default=20)
+    receiver_reliability.add_argument("--min-games", type=int, default=5)
+    receiver_reliability.add_argument("--bootstrap-samples", type=int, default=2000)
+    receiver_reliability.add_argument("--seed", type=int, default=42)
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -323,6 +358,41 @@ def main() -> None:
                 f"RMSE={row['rmse']} R2={row['r2']} MAE={row['mae']} "
                 f"bias={row['bias']}"
             )
+    elif args.command == "cross-season-receiver-reliability":
+        old_rows, new_rows, diagnostics = load_cross_season_wr_rows(
+            args.legacy_route_table,
+            args.bdb2026_route_table,
+            args.nflverse_pbp,
+            require_dynamic=True,
+        )
+        predictions = cross_season_receiver_predictions(
+            old_rows, new_rows, n_folds=args.folds, seed=args.seed
+        )
+        receiver_rows, reliability, receiver_diagnostics = summarize_cross_season_receivers(
+            predictions,
+            min_routes=args.min_routes,
+            min_games=args.min_games,
+            bootstrap_samples=args.bootstrap_samples,
+            seed=args.seed,
+        )
+        if not receiver_rows or not reliability:
+            raise ValueError(
+                "At least three shared receivers must meet the route and game thresholds"
+            )
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        write_csv(args.output_dir / "route_predictions.csv", list(predictions[0]), predictions)
+        write_csv(args.output_dir / "receiver_summaries.csv", list(receiver_rows[0]), receiver_rows)
+        write_csv(args.output_dir / "reliability_metrics.csv", list(reliability[0]), reliability)
+        print("cross-season join checks")
+        for name, value in diagnostics.items():
+            print(f"{name}: {value}")
+        print("receiver cohort")
+        for name, value in receiver_diagnostics.items():
+            print(f"{name}: {value}")
+        print("cross-season receiver correlations")
+        for row in reliability:
+            print(row)
+        print(f"outputs: {args.output_dir}")
     elif args.command == "fit-baselines":
         fit_baselines(
             args.route_table,

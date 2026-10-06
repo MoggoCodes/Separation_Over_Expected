@@ -82,6 +82,20 @@ uv run separation-over-expected compare-cross-season-dynamic
 
 `notebooks/16_dynamic_cross_season_transfer.ipynb` shows feature support, same-season comparisons, transferred scores, and game-cluster uncertainty.
 
+## Cross-Season Receiver Reliability
+
+Route-level transfer does not tell us whether receiver residuals repeat for the same players. `notebooks/17_cross_season_receiver_reliability.ipynb` compares receiver mean residuals from five-fold, game-held-out 2021 predictions with 2023 residuals from models frozen on all eligible 2021 routes. It evaluates the static and dynamic shared-feature ridge models on the 91 receivers with at least 20 routes across five games in each season. Residuals are centered within season to remove a common calibration shift; player uncertainty intervals resample games, and cross-player correlation intervals use a nested bootstrap of matched receivers and their games.
+
+Dynamic defender-motion features show higher observed cross-season repeatability in this sample than the static model: Pearson correlation is 0.459 versus 0.375 and Spearman correlation is 0.122 versus -0.004. The nested paired bootstrap, which resamples matched receivers and their game clusters, estimates a Pearson gain of +0.083 (95% interval [+0.001, +0.135]) and a Spearman gain of +0.125 ([-0.029, +0.145]). The absolute-correlation intervals are broad and include zero; the ranking-agreement difference is also uncertain. This is tentative evidence that the dynamic specification may improve repeatability, not proof of stable player rankings or isolated receiver skill. The 2021 sample covers eight weeks; 2023 covers a full season and has only snap-to-release-like frame timing.
+
+Reproduce the tables with:
+
+```bash
+uv run separation-over-expected cross-season-receiver-reliability
+```
+
+The route predictions, receiver summaries, and reliability metrics are written beneath the ignored `data/processed/cross_season_receiver_reliability/` directory.
+
 ## Calibration Diagnostics
 
 The model is intended to estimate expected route-level separation change, so evaluation should check more than R². `notebooks/14_model_calibration.ipynb` uses game-grouped out-of-fold predictions from the current dynamic WR ridge model to compare mean observed and predicted separation change across prediction deciles. Its calibration chart includes game-cluster bootstrap intervals, and a second plot checks residual bias across starting-separation and observed-window-duration groups. In this run, the mean prediction is -2.342 yards versus -2.341 observed, with calibration slope 0.997 and intercept -0.006; prediction-decile mean residuals range from about -0.07 to +0.10 yards. The decile view assesses average calibration; the context plot helps reveal local bias. These results support the route-level baseline, but do not establish player-level reliability.
