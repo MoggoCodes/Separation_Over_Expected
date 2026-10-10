@@ -21,6 +21,8 @@ from .receiver_reliability import (
     summarize_cross_season_receivers,
 )
 from .ridge_comparison import DEFAULT_L2_VALUES, compare_ridge_specifications
+from .algorithm_comparison import compare_algorithms
+from .player_audit import run_player_validity_audit
 
 
 def main() -> None:
@@ -188,6 +190,34 @@ def main() -> None:
     ridge_comparison.add_argument("--min-routes-per-half", type=int, default=20)
     ridge_comparison.add_argument("--bootstrap-samples", type=int, default=2000)
     ridge_comparison.add_argument("--seed", type=int, default=42)
+
+    algorithm_comparison = subparsers.add_parser(
+        "compare-algorithms",
+        help="Compare dynamic ridge with Extra Trees and histogram gradient boosting.",
+    )
+    algorithm_comparison.add_argument(
+        "--route-table", type=Path,
+        default=Path("data/processed/dynamic_features/pocket_context/route_level_snap_to_release_pocket.csv"),
+    )
+    algorithm_comparison.add_argument(
+        "--output-dir", type=Path,
+        default=Path("data/processed/algorithm_comparison"),
+    )
+    algorithm_comparison.add_argument("--folds", type=int, default=5)
+    algorithm_comparison.add_argument("--min-routes-per-half", type=int, default=20)
+    algorithm_comparison.add_argument("--bootstrap-samples", type=int, default=1000)
+    algorithm_comparison.add_argument("--seed", type=int, default=42)
+
+    player_audit = subparsers.add_parser(
+        "audit-receiver-validity",
+        help="Audit receiver split-half reliability, usage sensitivity, and route-depth residuals.",
+    )
+    player_audit.add_argument("--route-table", type=Path, default=Path("data/processed/dynamic_features/pocket_context/route_level_snap_to_release_pocket.csv"))
+    player_audit.add_argument("--comparison-dir", type=Path, default=Path("data/processed/algorithm_comparison"))
+    player_audit.add_argument("--output-dir", type=Path, default=Path("data/processed/player_validity_audit"))
+    player_audit.add_argument("--folds", type=int, default=5)
+    player_audit.add_argument("--split-seeds", type=int, default=100)
+    player_audit.add_argument("--seed", type=int, default=42)
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -444,7 +474,8 @@ def main() -> None:
             ("receiver_half_scores.csv", player_halves),
             ("receiver_reliability.csv", reliability),
         ):
-            write_csv(args.output_dir / filename, list(table[0]), table)
+            columns = list(dict.fromkeys(key for row in table for key in row))
+            write_csv(args.output_dir / filename, columns, table)
         print("grouped OOF ridge candidate scores (lower RMSE is better)")
         for row in sorted(metrics, key=lambda item: float(item["rmse"])):
             print(
@@ -462,6 +493,49 @@ def main() -> None:
                 f"Δ vs dynamic_l2_25={row['pearson_delta_vs_dynamic_l2_25']} "
                 f"[{row['pearson_delta_lower_95']}, {row['pearson_delta_upper_95']}]"
             )
+        print(f"outputs: {args.output_dir}")
+    elif args.command == "compare-algorithms":
+        outputs = compare_algorithms(
+            read_csv_rows(args.route_table), n_folds=args.folds,
+            min_routes_per_half=args.min_routes_per_half,
+            bootstrap_samples=args.bootstrap_samples, seed=args.seed,
+        )
+        predictions, metrics, folds, deciles, player_halves, reliability = outputs
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        for filename, table in (
+            ("route_oof_predictions.csv", predictions),
+            ("candidate_metrics.csv", metrics),
+            ("fold_metrics.csv", folds),
+            ("calibration_deciles.csv", deciles),
+            ("receiver_half_scores.csv", player_halves),
+            ("receiver_reliability.csv", reliability),
+        ):
+            columns = list(dict.fromkeys(key for row in table for key in row))
+            write_csv(args.output_dir / filename, columns, table)
+        print("game-held-out algorithm comparison (lower RMSE is better)")
+        for row in sorted(metrics, key=lambda item: float(item["rmse"])):
+            print(
+                f"{row['model']}: RMSE={row['rmse']} MAE={row['mae']} R2={row['r2']} "
+                f"ΔRMSE vs ridge={row['rmse_delta_vs_ridge']} "
+                f"[{row['rmse_delta_lower_95']}, {row['rmse_delta_upper_95']}], "
+                f"calibration slope={row['calibration_slope']}"
+            )
+        print("receiver split-half reliability")
+        for row in reliability:
+            print(row)
+        print(f"outputs: {args.output_dir}")
+    elif args.command == "audit-receiver-validity":
+        outputs = run_player_validity_audit(
+            read_csv_rows(args.route_table),
+            read_csv_rows(args.comparison_dir / "route_oof_predictions.csv"),
+            args.output_dir,
+            read_csv_rows(Path("data/processed/cross_season_receiver_reliability/receiver_summaries.csv")),
+            folds=args.folds, split_seeds=args.split_seeds, seed=args.seed,
+        )
+        print("median split-half reliability across random game-half assignments")
+        for row in outputs["reliability_summary"]:
+            if row["metric"] in {"pearson", "spearman"} and row["min_routes_per_half"] == "20":
+                print(f"{row['model']} {row['metric']}: {row['median']} (P10–P90 {row['p10']}–{row['p90']}; n={row['split_seeds']} splits)")
         print(f"outputs: {args.output_dir}")
     elif args.command == "fit-baselines":
         fit_baselines(

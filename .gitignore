@@ -10,6 +10,8 @@ wheels/
 data/processed/bdb2026/
 data/processed/cross_season_receiver_reliability/
 data/processed/ridge_comparison/
+data/processed/algorithm_comparison/
+data/processed/player_validity_audit/route_oof_predictions.csv
 
 # Virtual environments
 .venv

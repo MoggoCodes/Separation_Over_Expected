@@ -7,7 +7,9 @@ authors = [
     { name = "Amogh Agarwal", email = "amoghagarwal2000@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "scikit-learn>=1.7.2",
+]
 
 [project.scripts]
 separation-over-expected = "separation_over_expected:main"
