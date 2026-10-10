@@ -96,6 +96,8 @@ uv run separation-over-expected cross-season-receiver-reliability
 
 The route predictions, receiver summaries, and reliability metrics are written beneath the ignored `data/processed/cross_season_receiver_reliability/` directory.
 
+`notebooks/22_2023_receiver_validity.ipynb` stress-tests that result without changing the target or model: it compares pre-set route/game eligibility cutoffs and reports leave-one-receiver-out correlations. This is a stop/go check on player-level robustness, not another model search. Run notebook 17 first to generate the frozen route predictions it consumes. Its derived tables are written under the ignored `data/processed/cross_season_receiver_validity/` directory.
+
 ## Calibration Diagnostics
 
 The model is intended to estimate expected route-level separation change, so evaluation should check more than R². `notebooks/14_model_calibration.ipynb` uses game-grouped out-of-fold predictions from the current dynamic WR ridge model to compare mean observed and predicted separation change across prediction deciles. Its calibration chart includes game-cluster bootstrap intervals, and a second plot checks residual bias across starting-separation and observed-window-duration groups. In this run, the mean prediction is -2.342 yards versus -2.341 observed, with calibration slope 0.997 and intercept -0.006; prediction-decile mean residuals range from about -0.07 to +0.10 yards. The decile view assesses average calibration; the context plot helps reveal local bias. These results support the route-level baseline, but do not establish player-level reliability.
