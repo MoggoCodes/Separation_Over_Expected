@@ -1,0 +1,226 @@
+target,model,group_type,group,routes,mean_target,mean_residual,rmse
+endpoint_nearest,ridge_dynamic_context,route_depth,10+ yd,9533,-2.735840,-0.218545,1.750457
+endpoint_nearest,ridge_dynamic_context,defender_switch,switched,7795,-2.113455,0.288837,2.219334
+endpoint_nearest,ridge_dynamic_context,alignment,LWR,6213,-2.356398,-0.000595,1.802279
+endpoint_nearest,ridge_dynamic_context,route_depth,5–10 yd,7580,-2.398087,-0.098968,1.613878
+endpoint_nearest,ridge_dynamic_context,alignment,SRWR,1938,-2.099617,-0.002847,2.045047
+endpoint_nearest,ridge_dynamic_context,defender_switch,stable,12620,-2.480819,-0.176855,1.614906
+endpoint_nearest,ridge_dynamic_context,alignment,SLWR,2349,-2.225360,-0.005687,2.057402
+endpoint_nearest,ridge_dynamic_context,route_depth,2–5 yd,2778,-1.524747,0.425809,1.938441
+endpoint_nearest,ridge_dynamic_context,alignment,RWR,6097,-2.359201,-0.000692,1.746541
+endpoint_nearest,ridge_dynamic_context,alignment,SRoWR,1306,-2.592030,-0.010864,1.759172
+endpoint_nearest,ridge_dynamic_context,alignment,SRiWR,714,-2.525889,-0.016802,2.235892
+endpoint_nearest,ridge_dynamic_context,route_depth,<2 yd,524,1.358181,3.187486,4.768377
+endpoint_nearest,ridge_dynamic_context,alignment,SLiWR,648,-2.336728,-0.031119,2.067908
+endpoint_nearest,ridge_dynamic_context,alignment,SLoWR,1028,-2.486314,-0.006220,1.629468
+endpoint_nearest,ridge_dynamic_context,alignment,TE-oR,6,-2.444833,-0.138222,1.363603
+endpoint_nearest,ridge_dynamic_context,alignment,HB-R,18,-3.082111,0.725218,3.127635
+endpoint_nearest,ridge_dynamic_context,alignment,TE-iR,8,-0.702375,0.463835,2.087036
+endpoint_nearest,ridge_dynamic_context,alignment,TE-R,17,-0.047471,1.150537,2.782606
+endpoint_nearest,ridge_dynamic_context,alignment,HB,9,-3.578889,1.454295,4.065567
+endpoint_nearest,ridge_dynamic_context,alignment,TE-L,27,-0.827593,0.648120,3.849478
+endpoint_nearest,ridge_dynamic_context,alignment,FB-L,4,-2.071750,1.833515,5.432098
+endpoint_nearest,ridge_dynamic_context,alignment,HB-L,17,-2.797353,1.128335,3.567553
+endpoint_nearest,ridge_dynamic_context,alignment,TE-oL,8,-0.559500,0.328138,1.691764
+endpoint_nearest,ridge_dynamic_context,alignment,TE-iL,5,-1.930400,-0.688131,2.724069
+endpoint_nearest,ridge_dynamic_context,alignment,FB-R,3,-0.545333,2.441873,4.815992
+endpoint_nearest,extra_trees,route_depth,10+ yd,9533,-2.735840,-0.219997,1.721765
+endpoint_nearest,extra_trees,defender_switch,switched,7795,-2.113455,0.263520,2.198508
+endpoint_nearest,extra_trees,alignment,LWR,6213,-2.356398,-0.024265,1.740948
+endpoint_nearest,extra_trees,route_depth,5–10 yd,7580,-2.398087,-0.123959,1.569144
+endpoint_nearest,extra_trees,alignment,SRWR,1938,-2.099617,0.047061,2.005732
+endpoint_nearest,extra_trees,defender_switch,stable,12620,-2.480819,-0.164446,1.553670
+endpoint_nearest,extra_trees,alignment,SLWR,2349,-2.225360,0.046050,2.038146
+endpoint_nearest,extra_trees,route_depth,2–5 yd,2778,-1.524747,0.456766,1.812587
+endpoint_nearest,extra_trees,alignment,RWR,6097,-2.359201,-0.023462,1.692366
+endpoint_nearest,extra_trees,alignment,SRoWR,1306,-2.592030,-0.031635,1.731220
+endpoint_nearest,extra_trees,alignment,SRiWR,714,-2.525889,0.000257,2.194477
+endpoint_nearest,extra_trees,route_depth,<2 yd,524,1.358181,3.333545,4.803185
+endpoint_nearest,extra_trees,alignment,SLiWR,648,-2.336728,-0.077972,2.040430
+endpoint_nearest,extra_trees,alignment,SLoWR,1028,-2.486314,-0.039831,1.603535
+endpoint_nearest,extra_trees,alignment,TE-oR,6,-2.444833,-0.138778,1.330671
+endpoint_nearest,extra_trees,alignment,HB-R,18,-3.082111,1.537239,3.401937
+endpoint_nearest,extra_trees,alignment,TE-iR,8,-0.702375,0.841037,2.247599
+endpoint_nearest,extra_trees,alignment,TE-R,17,-0.047471,2.001744,3.083568
+endpoint_nearest,extra_trees,alignment,HB,9,-3.578889,2.794048,4.112199
+endpoint_nearest,extra_trees,alignment,TE-L,27,-0.827593,1.822334,4.111631
+endpoint_nearest,extra_trees,alignment,FB-L,4,-2.071750,3.128490,6.022271
+endpoint_nearest,extra_trees,alignment,HB-L,17,-2.797353,2.026783,3.893669
+endpoint_nearest,extra_trees,alignment,TE-oL,8,-0.559500,1.121899,2.443435
+endpoint_nearest,extra_trees,alignment,TE-iL,5,-1.930400,-0.290827,2.739793
+endpoint_nearest,extra_trees,alignment,FB-R,3,-0.545333,3.142226,5.183092
+endpoint_nearest,hist_gradient_boosting,route_depth,10+ yd,9533,-2.735840,-0.197717,1.706034
+endpoint_nearest,hist_gradient_boosting,defender_switch,switched,7795,-2.113455,0.242123,2.179302
+endpoint_nearest,hist_gradient_boosting,alignment,LWR,6213,-2.356398,0.003330,1.700465
+endpoint_nearest,hist_gradient_boosting,route_depth,5–10 yd,7580,-2.398087,-0.107657,1.549154
+endpoint_nearest,hist_gradient_boosting,alignment,SRWR,1938,-2.099617,0.021819,1.965380
+endpoint_nearest,hist_gradient_boosting,defender_switch,stable,12620,-2.480819,-0.148888,1.507499
+endpoint_nearest,hist_gradient_boosting,alignment,SLWR,2349,-2.225360,0.012202,1.978987
+endpoint_nearest,hist_gradient_boosting,route_depth,2–5 yd,2778,-1.524747,0.420871,1.773917
+endpoint_nearest,hist_gradient_boosting,alignment,RWR,6097,-2.359201,-0.005686,1.663836
+endpoint_nearest,hist_gradient_boosting,alignment,SRoWR,1306,-2.592030,-0.063561,1.709028
+endpoint_nearest,hist_gradient_boosting,alignment,SRiWR,714,-2.525889,-0.018544,2.200000
+endpoint_nearest,hist_gradient_boosting,route_depth,<2 yd,524,1.358181,2.939097,4.586273
+endpoint_nearest,hist_gradient_boosting,alignment,SLiWR,648,-2.336728,-0.114196,2.032279
+endpoint_nearest,hist_gradient_boosting,alignment,SLoWR,1028,-2.486314,-0.051411,1.598728
+endpoint_nearest,hist_gradient_boosting,alignment,TE-oR,6,-2.444833,-0.116543,1.215018
+endpoint_nearest,hist_gradient_boosting,alignment,HB-R,18,-3.082111,1.566177,3.443988
+endpoint_nearest,hist_gradient_boosting,alignment,TE-iR,8,-0.702375,0.598948,2.095090
+endpoint_nearest,hist_gradient_boosting,alignment,TE-R,17,-0.047471,1.861734,3.066023
+endpoint_nearest,hist_gradient_boosting,alignment,HB,9,-3.578889,2.996058,4.701109
+endpoint_nearest,hist_gradient_boosting,alignment,TE-L,27,-0.827593,0.751023,4.124349
+endpoint_nearest,hist_gradient_boosting,alignment,FB-L,4,-2.071750,2.899336,5.342527
+endpoint_nearest,hist_gradient_boosting,alignment,HB-L,17,-2.797353,2.228425,3.938455
+endpoint_nearest,hist_gradient_boosting,alignment,TE-oL,8,-0.559500,0.993549,2.216910
+endpoint_nearest,hist_gradient_boosting,alignment,TE-iL,5,-1.930400,-0.531746,2.635843
+endpoint_nearest,hist_gradient_boosting,alignment,FB-R,3,-0.545333,2.856917,4.823690
+snap_anchor,ridge_dynamic_context,route_depth,10+ yd,9533,0.943130,-0.020367,4.749420
+snap_anchor,ridge_dynamic_context,defender_switch,switched,7795,5.269849,2.899232,5.987567
+snap_anchor,ridge_dynamic_context,alignment,LWR,6213,-0.138653,-0.002880,4.231023
+snap_anchor,ridge_dynamic_context,route_depth,5–10 yd,7580,-0.573762,-0.339979,4.066674
+snap_anchor,ridge_dynamic_context,alignment,SRWR,1938,1.743579,-0.004663,5.160149
+snap_anchor,ridge_dynamic_context,defender_switch,stable,12620,-2.480819,-1.785689,3.455017
+snap_anchor,ridge_dynamic_context,alignment,SLWR,2349,1.088390,-0.013506,4.837204
+snap_anchor,ridge_dynamic_context,route_depth,2–5 yd,2778,0.396959,0.312899,4.496884
+snap_anchor,ridge_dynamic_context,alignment,RWR,6097,0.070506,0.003662,4.224043
+snap_anchor,ridge_dynamic_context,alignment,SRoWR,1306,0.651505,-0.009972,4.629803
+snap_anchor,ridge_dynamic_context,alignment,SRiWR,714,1.489120,-0.041414,5.741415
+snap_anchor,ridge_dynamic_context,route_depth,<2 yd,524,7.683294,3.752072,7.999965
+snap_anchor,ridge_dynamic_context,alignment,SLiWR,648,2.129448,-0.007408,6.018853
+snap_anchor,ridge_dynamic_context,alignment,SLoWR,1028,0.401563,-0.020277,4.450243
+snap_anchor,ridge_dynamic_context,alignment,TE-oR,6,0.457833,-2.372829,4.037831
+snap_anchor,ridge_dynamic_context,alignment,HB-R,18,1.041778,1.392533,6.617652
+snap_anchor,ridge_dynamic_context,alignment,TE-iR,8,5.830125,-0.353444,7.303328
+snap_anchor,ridge_dynamic_context,alignment,TE-R,17,8.129176,1.964886,9.694228
+snap_anchor,ridge_dynamic_context,alignment,HB,9,4.912222,4.479888,9.519485
+snap_anchor,ridge_dynamic_context,alignment,TE-L,27,5.466222,0.746289,6.966265
+snap_anchor,ridge_dynamic_context,alignment,FB-L,4,13.761250,9.815949,18.639945
+snap_anchor,ridge_dynamic_context,alignment,HB-L,17,1.687118,1.530856,8.022540
+snap_anchor,ridge_dynamic_context,alignment,TE-oL,8,7.223250,1.444411,6.658744
+snap_anchor,ridge_dynamic_context,alignment,TE-iL,5,1.930000,-3.952622,6.864946
+snap_anchor,ridge_dynamic_context,alignment,FB-R,3,3.446333,3.243167,4.282724
+snap_anchor,extra_trees,route_depth,10+ yd,9533,0.943130,-0.163431,4.580983
+snap_anchor,extra_trees,defender_switch,switched,7795,5.269849,2.831355,5.842872
+snap_anchor,extra_trees,alignment,LWR,6213,-0.138653,-0.073761,3.833294
+snap_anchor,extra_trees,route_depth,5–10 yd,7580,-0.573762,-0.258848,3.620538
+snap_anchor,extra_trees,alignment,SRWR,1938,1.743579,0.120146,5.039372
+snap_anchor,extra_trees,defender_switch,stable,12620,-2.480819,-1.725414,2.920358
+snap_anchor,extra_trees,alignment,SLWR,2349,1.088390,0.023997,4.614324
+snap_anchor,extra_trees,route_depth,2–5 yd,2778,0.396959,0.589062,3.965687
+snap_anchor,extra_trees,alignment,RWR,6097,0.070506,-0.068585,3.881699
+snap_anchor,extra_trees,alignment,SRoWR,1306,0.651505,0.190290,4.481193
+snap_anchor,extra_trees,alignment,SRiWR,714,1.489120,0.156961,5.275886
+snap_anchor,extra_trees,route_depth,<2 yd,524,7.683294,4.159028,7.646893
+snap_anchor,extra_trees,alignment,SLiWR,648,2.129448,0.516182,5.548721
+snap_anchor,extra_trees,alignment,SLoWR,1028,0.401563,-0.162350,4.098726
+snap_anchor,extra_trees,alignment,TE-oR,6,0.457833,-1.886271,3.050151
+snap_anchor,extra_trees,alignment,HB-R,18,1.041778,3.083683,6.475984
+snap_anchor,extra_trees,alignment,TE-iR,8,5.830125,-0.426244,7.205582
+snap_anchor,extra_trees,alignment,TE-R,17,8.129176,3.156584,8.869202
+snap_anchor,extra_trees,alignment,HB,9,4.912222,6.574883,10.165378
+snap_anchor,extra_trees,alignment,TE-L,27,5.466222,2.387039,7.122697
+snap_anchor,extra_trees,alignment,FB-L,4,13.761250,12.457798,19.025222
+snap_anchor,extra_trees,alignment,HB-L,17,1.687118,3.670290,8.161746
+snap_anchor,extra_trees,alignment,TE-oL,8,7.223250,2.907355,6.810743
+snap_anchor,extra_trees,alignment,TE-iL,5,1.930000,-1.399768,5.890906
+snap_anchor,extra_trees,alignment,FB-R,3,3.446333,2.729683,3.774455
+snap_anchor,hist_gradient_boosting,route_depth,10+ yd,9533,0.943130,-0.157651,4.207365
+snap_anchor,hist_gradient_boosting,defender_switch,switched,7795,5.269849,2.402683,5.471639
+snap_anchor,hist_gradient_boosting,alignment,LWR,6213,-0.138653,0.033217,3.714314
+snap_anchor,hist_gradient_boosting,route_depth,5–10 yd,7580,-0.573762,-0.202953,3.563701
+snap_anchor,hist_gradient_boosting,alignment,SRWR,1938,1.743579,-0.059119,4.647581
+snap_anchor,hist_gradient_boosting,defender_switch,stable,12620,-2.480819,-1.478599,2.874418
+snap_anchor,hist_gradient_boosting,alignment,SLWR,2349,1.088390,-0.110840,4.307505
+snap_anchor,hist_gradient_boosting,route_depth,2–5 yd,2778,0.396959,0.539019,4.062859
+snap_anchor,hist_gradient_boosting,alignment,RWR,6097,0.070506,0.023950,3.673753
+snap_anchor,hist_gradient_boosting,alignment,SRoWR,1306,0.651505,0.076274,4.265157
+snap_anchor,hist_gradient_boosting,alignment,SRiWR,714,1.489120,-0.261991,5.112103
+snap_anchor,hist_gradient_boosting,route_depth,<2 yd,524,7.683294,3.077991,7.147452
+snap_anchor,hist_gradient_boosting,alignment,SLiWR,648,2.129448,-0.011669,5.301413
+snap_anchor,hist_gradient_boosting,alignment,SLoWR,1028,0.401563,-0.036919,3.898171
+snap_anchor,hist_gradient_boosting,alignment,TE-oR,6,0.457833,-1.082572,2.957671
+snap_anchor,hist_gradient_boosting,alignment,HB-R,18,1.041778,2.847034,5.695456
+snap_anchor,hist_gradient_boosting,alignment,TE-iR,8,5.830125,-0.948401,6.175429
+snap_anchor,hist_gradient_boosting,alignment,TE-R,17,8.129176,1.332092,9.701096
+snap_anchor,hist_gradient_boosting,alignment,HB,9,4.912222,4.048209,11.617838
+snap_anchor,hist_gradient_boosting,alignment,TE-L,27,5.466222,1.196784,6.681269
+snap_anchor,hist_gradient_boosting,alignment,FB-L,4,13.761250,10.314284,16.415919
+snap_anchor,hist_gradient_boosting,alignment,HB-L,17,1.687118,2.737900,8.453451
+snap_anchor,hist_gradient_boosting,alignment,TE-oL,8,7.223250,1.875465,6.871787
+snap_anchor,hist_gradient_boosting,alignment,TE-iL,5,1.930000,-3.117846,7.422893
+snap_anchor,hist_gradient_boosting,alignment,FB-R,3,3.446333,2.905863,3.470160
+snap_top3,ridge_dynamic_context,route_depth,10+ yd,9533,-2.151900,-0.210528,2.775719
+snap_top3,ridge_dynamic_context,defender_switch,switched,7795,-0.960066,0.630089,3.690661
+snap_top3,ridge_dynamic_context,alignment,LWR,6213,-2.108118,-0.004580,2.317144
+snap_top3,ridge_dynamic_context,route_depth,5–10 yd,7580,-2.206134,-0.162658,2.111253
+snap_top3,ridge_dynamic_context,alignment,SRWR,1938,-1.229692,-0.002471,3.358881
+snap_top3,ridge_dynamic_context,defender_switch,stable,12620,-2.480819,-0.389956,1.785195
+snap_top3,ridge_dynamic_context,alignment,SLWR,2349,-1.530590,-0.012983,3.090075
+snap_top3,ridge_dynamic_context,route_depth,2–5 yd,2778,-1.228463,0.446272,2.538857
+snap_top3,ridge_dynamic_context,alignment,RWR,6097,-2.072688,-0.005025,2.366891
+snap_top3,ridge_dynamic_context,alignment,SRoWR,1306,-2.036930,-0.014471,2.759419
+snap_top3,ridge_dynamic_context,alignment,SRiWR,714,-1.762258,-0.014988,3.310142
+snap_top3,ridge_dynamic_context,route_depth,<2 yd,524,3.544987,3.798587,6.368596
+snap_top3,ridge_dynamic_context,alignment,SLiWR,648,-1.500985,-0.026958,3.597967
+snap_top3,ridge_dynamic_context,alignment,SLoWR,1028,-2.116494,-0.011103,2.216157
+snap_top3,ridge_dynamic_context,alignment,TE-oR,6,-2.399500,-1.118994,1.625595
+snap_top3,ridge_dynamic_context,alignment,HB-R,18,-1.032722,1.770869,5.751008
+snap_top3,ridge_dynamic_context,alignment,TE-iR,8,1.693625,0.841568,4.424387
+snap_top3,ridge_dynamic_context,alignment,TE-R,17,1.985059,1.520581,6.241587
+snap_top3,ridge_dynamic_context,alignment,HB,9,-0.831111,3.167618,5.804473
+snap_top3,ridge_dynamic_context,alignment,TE-L,27,-0.075815,0.315244,4.724976
+snap_top3,ridge_dynamic_context,alignment,FB-L,4,5.888750,7.374214,12.452876
+snap_top3,ridge_dynamic_context,alignment,HB-L,17,-2.797353,0.729758,3.354249
+snap_top3,ridge_dynamic_context,alignment,TE-oL,8,1.980500,0.989233,3.075149
+snap_top3,ridge_dynamic_context,alignment,TE-iL,5,-1.930400,-2.067242,3.573106
+snap_top3,ridge_dynamic_context,alignment,FB-R,3,0.555000,2.972005,5.564218
+snap_top3,extra_trees,route_depth,10+ yd,9533,-2.151900,-0.233074,2.714950
+snap_top3,extra_trees,defender_switch,switched,7795,-0.960066,0.611034,3.612575
+snap_top3,extra_trees,alignment,LWR,6213,-2.108118,-0.090600,2.213817
+snap_top3,extra_trees,route_depth,5–10 yd,7580,-2.206134,-0.168289,1.987991
+snap_top3,extra_trees,alignment,SRWR,1938,-1.229692,0.149431,3.232769
+snap_top3,extra_trees,defender_switch,stable,12620,-2.480819,-0.380433,1.654518
+snap_top3,extra_trees,alignment,SLWR,2349,-1.530590,0.083596,2.988696
+snap_top3,extra_trees,route_depth,2–5 yd,2778,-1.228463,0.511696,2.371466
+snap_top3,extra_trees,alignment,RWR,6097,-2.072688,-0.073767,2.249509
+snap_top3,extra_trees,alignment,SRoWR,1306,-2.036930,0.064898,2.704657
+snap_top3,extra_trees,alignment,SRiWR,714,-1.762258,0.127595,3.203657
+snap_top3,extra_trees,route_depth,<2 yd,524,3.544987,3.889288,6.243964
+snap_top3,extra_trees,alignment,SLiWR,648,-1.500985,0.127158,3.500065
+snap_top3,extra_trees,alignment,SLoWR,1028,-2.116494,-0.068525,2.178536
+snap_top3,extra_trees,alignment,TE-oR,6,-2.399500,-0.801382,1.395248
+snap_top3,extra_trees,alignment,HB-R,18,-1.032722,3.353096,6.538076
+snap_top3,extra_trees,alignment,TE-iR,8,1.693625,1.657454,4.214773
+snap_top3,extra_trees,alignment,TE-R,17,1.985059,2.907602,6.532175
+snap_top3,extra_trees,alignment,HB,9,-0.831111,4.550333,6.457489
+snap_top3,extra_trees,alignment,TE-L,27,-0.075815,1.672420,5.030025
+snap_top3,extra_trees,alignment,FB-L,4,5.888750,10.026039,14.343291
+snap_top3,extra_trees,alignment,HB-L,17,-2.797353,1.799146,3.718999
+snap_top3,extra_trees,alignment,TE-oL,8,1.980500,2.432614,3.940114
+snap_top3,extra_trees,alignment,TE-iL,5,-1.930400,-0.854750,3.288169
+snap_top3,extra_trees,alignment,FB-R,3,0.555000,3.534822,5.666730
+snap_top3,hist_gradient_boosting,route_depth,10+ yd,9533,-2.151900,-0.219029,2.679731
+snap_top3,hist_gradient_boosting,defender_switch,switched,7795,-0.960066,0.518228,3.545983
+snap_top3,hist_gradient_boosting,alignment,LWR,6213,-2.108118,-0.034266,2.175724
+snap_top3,hist_gradient_boosting,route_depth,5–10 yd,7580,-2.206134,-0.137939,1.975353
+snap_top3,hist_gradient_boosting,alignment,SRWR,1938,-1.229692,0.069627,3.126564
+snap_top3,hist_gradient_boosting,defender_switch,stable,12620,-2.480819,-0.322041,1.628235
+snap_top3,hist_gradient_boosting,alignment,SLWR,2349,-1.530590,0.022184,2.945059
+snap_top3,hist_gradient_boosting,route_depth,2–5 yd,2778,-1.228463,0.482266,2.346564
+snap_top3,hist_gradient_boosting,alignment,RWR,6097,-2.072688,-0.028745,2.214221
+snap_top3,hist_gradient_boosting,alignment,SRoWR,1306,-2.036930,0.000864,2.660707
+snap_top3,hist_gradient_boosting,alignment,SRiWR,714,-1.762258,0.027353,3.160681
+snap_top3,hist_gradient_boosting,route_depth,<2 yd,524,3.544987,3.376501,5.884013
+snap_top3,hist_gradient_boosting,alignment,SLiWR,648,-1.500985,0.008655,3.395230
+snap_top3,hist_gradient_boosting,alignment,SLoWR,1028,-2.116494,-0.089182,2.212513
+snap_top3,hist_gradient_boosting,alignment,TE-oR,6,-2.399500,-0.717997,1.457162
+snap_top3,hist_gradient_boosting,alignment,HB-R,18,-1.032722,3.198852,6.381304
+snap_top3,hist_gradient_boosting,alignment,TE-iR,8,1.693625,1.492817,3.720451
+snap_top3,hist_gradient_boosting,alignment,TE-R,17,1.985059,2.487064,6.544497
+snap_top3,hist_gradient_boosting,alignment,HB,9,-0.831111,4.191332,6.667971
+snap_top3,hist_gradient_boosting,alignment,TE-L,27,-0.075815,0.482375,5.066370
+snap_top3,hist_gradient_boosting,alignment,FB-L,4,5.888750,9.740163,13.915646
+snap_top3,hist_gradient_boosting,alignment,HB-L,17,-2.797353,1.702065,3.768697
+snap_top3,hist_gradient_boosting,alignment,TE-oL,8,1.980500,2.036650,3.741636
+snap_top3,hist_gradient_boosting,alignment,TE-iL,5,-1.930400,-1.770796,3.878804
+snap_top3,hist_gradient_boosting,alignment,FB-R,3,0.555000,2.791856,5.433028

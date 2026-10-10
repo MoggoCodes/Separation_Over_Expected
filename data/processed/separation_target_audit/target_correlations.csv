@@ -1,0 +1,4 @@
+target_a,target_b,pearson,spearman
+endpoint_nearest,snap_anchor,0.44300859,0.59251496
+endpoint_nearest,snap_top3,0.80840957,0.93054147
+snap_anchor,snap_top3,0.63039316,0.66810650

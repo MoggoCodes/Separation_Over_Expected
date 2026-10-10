@@ -12,6 +12,8 @@ data/processed/cross_season_receiver_reliability/
 data/processed/ridge_comparison/
 data/processed/algorithm_comparison/
 data/processed/player_validity_audit/route_oof_predictions.csv
+data/processed/separation_target_audit/route_table.csv
+data/processed/separation_target_audit/oof_predictions.csv
 
 # Virtual environments
 .venv
