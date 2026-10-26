@@ -15,6 +15,7 @@ data/processed/context_mix_audit/
 data/processed/receiver_effects_audit/
 data/processed/ridge_comparison/
 data/processed/algorithm_comparison/
+data/processed/xgboost_comparison/
 data/processed/player_validity_audit/route_oof_predictions.csv
 data/processed/separation_target_audit/route_table.csv
 data/processed/separation_target_audit/oof_predictions.csv

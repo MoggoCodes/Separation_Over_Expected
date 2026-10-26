@@ -11,6 +11,7 @@ from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+from xgboost import XGBRegressor
 
 from .models import RidgeDynamicContextModel, regression_metrics, target
 from .validation import (
@@ -23,7 +24,12 @@ from .validation import (
 from .utils import parse_float
 
 
-MODEL_NAMES = ("ridge_dynamic_context", "extra_trees", "hist_gradient_boosting")
+MODEL_NAMES = (
+    "ridge_dynamic_context",
+    "extra_trees",
+    "hist_gradient_boosting",
+    "xgboost",
+)
 
 
 def _features() -> tuple[list[str], list[str]]:
@@ -210,6 +216,23 @@ def compare_algorithms(
                     learning_rate=0.08,
                     early_stopping=False,
                     random_state=seed + fold,
+                ),
+            ),
+            (
+                "xgboost",
+                XGBRegressor(
+                    objective="reg:squarederror",
+                    n_estimators=500,
+                    max_depth=5,
+                    learning_rate=0.04,
+                    min_child_weight=10,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    reg_lambda=10.0,
+                    tree_method="hist",
+                    n_jobs=4,
+                    random_state=seed + fold,
+                    verbosity=0,
                 ),
             ),
         )

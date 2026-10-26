@@ -194,7 +194,7 @@ def main() -> None:
 
     algorithm_comparison = subparsers.add_parser(
         "compare-algorithms",
-        help="Compare dynamic ridge with Extra Trees and histogram gradient boosting.",
+        help="Compare dynamic ridge with Extra Trees, histogram boosting, and XGBoost.",
     )
     algorithm_comparison.add_argument(
         "--route-table", type=Path,
