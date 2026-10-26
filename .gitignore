@@ -12,6 +12,7 @@ data/processed/cross_season_receiver_reliability/
 data/processed/cross_season_receiver_validity/
 data/processed/within_season_receiver_reliability/
 data/processed/context_mix_audit/
+data/processed/receiver_effects_audit/
 data/processed/ridge_comparison/
 data/processed/algorithm_comparison/
 data/processed/player_validity_audit/route_oof_predictions.csv
