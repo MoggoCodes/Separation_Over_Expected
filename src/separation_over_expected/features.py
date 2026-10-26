@@ -13,6 +13,7 @@ from .feature_schema import (
     POCKET_CONTEXT_FEATURES,
 )
 from .utils import fmt, normalize_xy, parse_float
+from .target_definitions import compute_separation_targets
 
 
 ROUTE_TABLE_COLUMNS = [
@@ -60,6 +61,10 @@ ROUTE_TABLE_COLUMNS = [
     "sep_snap",
     "sep_release",
     "delta_sep",
+    "delta_sep_snap_anchor",
+    "delta_sep_snap_top3",
+    "nearest_defender_switched",
+    "snap_top3_release_count",
     "nearest_defender_dx_snap",
     "nearest_defender_dy_snap",
     "nearest_defender_dx_release",
@@ -241,6 +246,13 @@ def make_route_row(
     release_nearest = nearest_defender(release, release_positions, coverage_ids)
     if snap_nearest is None or release_nearest is None:
         return None
+    target_fields = compute_separation_targets(
+        snap,
+        release,
+        snap_positions,
+        release_positions,
+        coverage_ids,
+    )
 
     snap_norm = normalize_xy(float(snap["x"]), float(snap["y"]), play_direction)
     release_norm = normalize_xy(float(release["x"]), float(release["y"]), play_direction)
@@ -308,6 +320,11 @@ def make_route_row(
         "sep_snap": fmt(float(snap_nearest["distance"])),
         "sep_release": fmt(float(release_nearest["distance"])),
         "delta_sep": fmt(float(release_nearest["distance"]) - float(snap_nearest["distance"])),
+        **{
+            key: value
+            for key, value in target_fields.items()
+            if key != "delta_sep_endpoint_nearest"
+        },
         "nearest_defender_dx_snap": fmt(snap_def_norm[0] - snap_norm[0]),
         "nearest_defender_dy_snap": fmt(snap_def_norm[1] - snap_norm[1]),
         "nearest_defender_dx_release": fmt(release_def_norm[0] - release_norm[0]),

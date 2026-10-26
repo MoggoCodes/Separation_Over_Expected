@@ -23,6 +23,7 @@ from .receiver_reliability import (
 from .ridge_comparison import DEFAULT_L2_VALUES, compare_ridge_specifications
 from .algorithm_comparison import compare_algorithms
 from .player_audit import run_player_validity_audit
+from .target_comparison import compare_separation_targets
 
 
 def main() -> None:
@@ -218,6 +219,23 @@ def main() -> None:
     player_audit.add_argument("--folds", type=int, default=5)
     player_audit.add_argument("--split-seeds", type=int, default=100)
     player_audit.add_argument("--seed", type=int, default=42)
+
+    target_audit = subparsers.add_parser(
+        "audit-separation-targets",
+        help="Compare endpoint-nearest, snap-anchor, and snap-top-three separation targets.",
+    )
+    target_audit.add_argument(
+        "--route-table", type=Path,
+        default=Path("data/processed/separation_target_audit/route_table.csv"),
+    )
+    target_audit.add_argument(
+        "--output-dir", type=Path,
+        default=Path("data/processed/separation_target_audit"),
+    )
+    target_audit.add_argument("--folds", type=int, default=5)
+    target_audit.add_argument("--split-seeds", type=int, default=100)
+    target_audit.add_argument("--bootstrap-samples", type=int, default=500)
+    target_audit.add_argument("--seed", type=int, default=42)
 
     baseline = subparsers.add_parser(
         "fit-baselines",
@@ -536,6 +554,20 @@ def main() -> None:
         for row in outputs["reliability_summary"]:
             if row["metric"] in {"pearson", "spearman"} and row["min_routes_per_half"] == "20":
                 print(f"{row['model']} {row['metric']}: {row['median']} (P10–P90 {row['p10']}–{row['p90']}; n={row['split_seeds']} splits)")
+        print(f"outputs: {args.output_dir}")
+    elif args.command == "audit-separation-targets":
+        outputs = compare_separation_targets(
+            read_csv_rows(args.route_table), args.output_dir,
+            n_folds=args.folds, split_seeds=args.split_seeds,
+            bootstrap_samples=args.bootstrap_samples, seed=args.seed,
+        )
+        print("WR target definitions on the common complete-case route population")
+        print(outputs["switch_rates"][0])
+        for row in outputs["model_metrics"]:
+            print(f"{row['target']} / {row['model']}: RMSE={row['rmse']} MAE={row['mae']} R2={row['r2']}")
+        for row in outputs["reliability_summary"]:
+            if row["metric"] in {"pearson", "spearman"} and row["min_routes_per_half"] == "20":
+                print(f"{row['target']} / {row['model']} {row['metric']}: median={row['median']} P10-P90={row['p10']}–{row['p90']}")
         print(f"outputs: {args.output_dir}")
     elif args.command == "fit-baselines":
         fit_baselines(

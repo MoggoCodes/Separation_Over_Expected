@@ -96,6 +96,8 @@ uv run separation-over-expected cross-season-receiver-reliability
 
 The route predictions, receiver summaries, and reliability metrics are written beneath the ignored `data/processed/cross_season_receiver_reliability/` directory.
 
+`notebooks/22_2023_receiver_validity.ipynb` stress-tests that result without changing the target or model: it compares pre-set route/game eligibility cutoffs and reports leave-one-receiver-out correlations. This is a stop/go check on player-level robustness, not another model search. Run notebook 17 first to generate the frozen route predictions it consumes. Its derived tables are written under the ignored `data/processed/cross_season_receiver_validity/` directory.
+
 ## Calibration Diagnostics
 
 The model is intended to estimate expected route-level separation change, so evaluation should check more than R². `notebooks/14_model_calibration.ipynb` uses game-grouped out-of-fold predictions from the current dynamic WR ridge model to compare mean observed and predicted separation change across prediction deciles. Its calibration chart includes game-cluster bootstrap intervals, and a second plot checks residual bias across starting-separation and observed-window-duration groups. In this run, the mean prediction is -2.342 yards versus -2.341 observed, with calibration slope 0.997 and intercept -0.006; prediction-decile mean residuals range from about -0.07 to +0.10 yards. The decile view assesses average calibration; the context plot helps reveal local bias. These results support the route-level baseline, but do not establish player-level reliability.
@@ -331,6 +333,25 @@ Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² o
 
 `notebooks/10_pressure_only_features.ipynb` documents the feature subset, fold metrics, and receiver reliability comparison.
 
+## Separation Target Definition Audit
+
+The existing target measures nearest-coverage-defender distance at release minus the nearest-defender distance at snap. Since the nearest defender can change during the route, we compared it with (1) distance to the snap-nearest defender followed through release and (2) nearest distance at release among the three defenders nearest at the snap. All three definitions were evaluated on the same 20,415 WR routes, with identical five-fold game-held-out splits, model features, and fixed model settings. Every route had all three snap-top-three defenders available at release; 7,795 routes (38.2%) changed nearest defender between endpoints.
+
+The endpoint-nearest target remains the best current reference. It has lower normalized RMSE than snap-top-three for all three model families (0.701 versus 0.774 for Ridge; 0.686 versus 0.747 for Extra Trees; 0.673 versus 0.734 for histogram gradient boosting). Median receiver repeatability is mixed: snap-top-three is slightly higher for Ridge, while endpoint-nearest is higher for both tree models. Snap-top-three is highly rank-correlated with the current target (Spearman 0.931), but does not consistently improve repeatability or the pronounced positive residual on routes with under two yards of downfield movement (HGB residual +2.94 yd endpoint-nearest, +3.38 yd snap-top-three). Following only the snap-nearest defender performs worse for receiver repeatability and creates a much wider target distribution. These results do not establish which target is closest to true coverage responsibility; retain the current target as the reference and document nearest-defender switching as a limitation.
+
+Rebuild the isolated route table and run the matched target audit with:
+
+```bash
+uv run separation-over-expected build-route-table \
+  --data-dir ../data/big_data_bowl_2023 \
+  --output data/processed/separation_target_audit/route_table.csv \
+  --include-pocket-features
+
+uv run separation-over-expected audit-separation-targets
+```
+
+`notebooks/21_separation_target_audit.ipynb` presents target distributions, route prediction and calibration metrics, receiver repeatability across game-half assignments and route-count thresholds, defender-switch diagnostics, and residuals by route depth and alignment. The audit output and OOF predictions are generated from the local tracking files and are not committed.
+
 ## Project Structure
 
 - `src/separation_over_expected/features.py`: route-table construction from Big Data Bowl tracking, play, player, and PFF files
@@ -353,3 +374,4 @@ Across the same 20,415 OOF WR routes, pressure-only slightly improves RMSE/R² o
 - `notebooks/14_model_calibration.ipynb`: game-grouped out-of-fold calibration and context-slice diagnostics for the dynamic WR model
 - `notebooks/15_frame_timing_audit.ipynb`: empirical and source-based audit of the 2023 pre-throw window against the 2021 snap-to-release interval
 - `notebooks/16_dynamic_cross_season_transfer.ipynb`: frozen 2021 common-feature static/dynamic ridge evaluation on 2023 routes
+- `notebooks/21_separation_target_audit.ipynb`: matched audit of three snap-to-release separation target definitions

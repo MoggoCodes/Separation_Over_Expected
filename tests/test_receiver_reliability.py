@@ -3,6 +3,7 @@ from separation_over_expected.receiver_reliability import (
     summarize_cross_season_receivers,
 )
 from separation_over_expected.feature_schema import DYNAMIC_CONTEXT_FEATURES
+from separation_over_expected.receiver_validity import audit_cross_season_receiver_validity
 
 
 def _route(season, week, game, player):
@@ -125,3 +126,34 @@ def test_cross_season_receiver_summary_excludes_short_or_few_game_players():
     assert diagnostics["shared_player_ids"] == 1
     assert diagnostics["eligible_shared_players"] == 0
     assert metrics == []
+
+
+def test_receiver_validity_audit_reports_cohort_sensitivity_and_leave_one_out():
+    predictions = []
+    for season, offset in (("2021", 0.0), ("2023", 2.0)):
+        for player in range(5):
+            for game in range(6):
+                for route in range(4):
+                    residual = player * 0.3 + game * 0.01 + offset
+                    predictions.append({
+                        "season": season,
+                        "gameId": f"{season}-{game}",
+                        "playId": f"{game}-{route}",
+                        "week": str(game + 1),
+                        "nflId": str(player),
+                        "displayName": f"Receiver {player}",
+                        "residual_static": str(residual),
+                        "residual_dynamic": str(residual * 1.1),
+                    })
+
+    cohorts, receivers, loo = audit_cross_season_receiver_validity(
+        predictions,
+        cohorts=((10, 5), (20, 5)),
+        bootstrap_samples=20,
+        seed=11,
+    )
+
+    assert {row["min_routes"] for row in cohorts} == {"10", "20"}
+    assert all(row["eligible_receivers"] == "5" for row in cohorts)
+    assert len(receivers) == 10
+    assert {row["omitted_receiver"] for row in loo} >= {"FULL COHORT"}
