@@ -1,0 +1,6 @@
+comparison,eligible_receivers,pearson,spearman,pearson_ci_lower,pearson_ci_upper,spearman_ci_lower,spearman_ci_upper,minimum_routes_each_half
+ridge_context,115,0.430880,0.220556,0.071785,0.672905,0.032200,0.386949,20
+ridge_dynamic_context,115,0.451857,0.209469,0.079452,0.691667,0.022494,0.384713,20
+ridge_dynamic_geometry_context,115,0.261958,0.188929,0.014585,0.471523,-0.006428,0.365256,20
+dynamic_minus_static,115,0.020977,-0.011087,-0.032642,0.053513,-0.077042,0.051544,20
+geometry_minus_dynamic,115,-0.189899,-0.020540,-0.315145,0.036825,-0.142972,0.106424,20

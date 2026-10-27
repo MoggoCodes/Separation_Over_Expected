@@ -10,12 +10,14 @@ from .feature_schema import (
     DYNAMIC_CONTEXT_FEATURES,
     POCKET_CONTEXT_FEATURES,
     PRESSURE_CONTEXT_FEATURES,
+    ROUTE_GEOMETRY_FEATURES,
 )
 from .models import (
     RidgeContextModel,
     RidgeDynamicContextModel,
     RidgePocketContextModel,
     RidgePressureContextModel,
+    RidgeRouteGeometryModel,
     regression_metrics,
     target,
 )
@@ -68,6 +70,7 @@ def cross_validate_position(
     bootstrap_samples: int = 2000,
     include_pocket_context: bool = False,
     include_pressure_context: bool = False,
+    include_route_geometry: bool = False,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     """Return out-of-game predictions, model metrics, player-half scores, and stability metrics."""
     rows = [row for row in rows if row["officialPosition"] == position]
@@ -78,6 +81,8 @@ def cross_validate_position(
         required_features.extend(POCKET_CONTEXT_FEATURES)
     if include_pressure_context:
         required_features.extend(PRESSURE_CONTEXT_FEATURES)
+    if include_route_geometry:
+        required_features.extend(ROUTE_GEOMETRY_FEATURES)
     missing = [feature for feature in required_features if feature not in rows[0]]
     if missing:
         rebuild_flag = (
@@ -85,6 +90,10 @@ def cross_validate_position(
             if include_pocket_context or include_pressure_context
             else "--include-dynamic-features"
         )
+        if include_route_geometry and any(
+            feature in missing for feature in ROUTE_GEOMETRY_FEATURES
+        ):
+            rebuild_flag = "--include-route-geometry"
         raise ValueError(
             "Required context features are missing. Rebuild the route table with "
             f"build-route-table {rebuild_flag}."
@@ -95,6 +104,8 @@ def cross_validate_position(
     model_names = ["ridge_context", "ridge_dynamic_context"]
     if include_pressure_context:
         model_names.append("ridge_pressure_context")
+    if include_route_geometry:
+        model_names.append("ridge_dynamic_geometry_context")
     if include_pocket_context:
         model_names.append("ridge_pocket_context")
     predictions: list[dict[str, str]] = []
@@ -115,12 +126,16 @@ def cross_validate_position(
             pocket_model = RidgePocketContextModel(l2=25.0, max_levels_per_feature=30)
         if include_pressure_context:
             pressure_model = RidgePressureContextModel(l2=25.0, max_levels_per_feature=30)
+        if include_route_geometry:
+            geometry_model = RidgeRouteGeometryModel(l2=25.0, max_levels_per_feature=30)
         static_model.fit(train_rows)
         dynamic_model.fit(train_rows)
         if include_pocket_context:
             pocket_model.fit(train_rows)
         if include_pressure_context:
             pressure_model.fit(train_rows)
+        if include_route_geometry:
+            geometry_model.fit(train_rows)
 
         actual = [target(row) for row in heldout_rows]
         static_predictions = [static_model.predict(row) for row in heldout_rows]
@@ -136,6 +151,10 @@ def cross_validate_position(
         if include_pressure_context:
             fold_predictions["ridge_pressure_context"] = [
                 pressure_model.predict(row) for row in heldout_rows
+            ]
+        if include_route_geometry:
+            fold_predictions["ridge_dynamic_geometry_context"] = [
+                geometry_model.predict(row) for row in heldout_rows
             ]
         for model_name, values in fold_predictions.items():
             fold_metrics.append(
@@ -317,6 +336,7 @@ def reliability_metrics(
             ("ridge_dynamic_context", "ridge_pocket_context"): "pocket_minus_dynamic",
             ("ridge_dynamic_context", "ridge_pressure_context"): "pressure_minus_dynamic",
             ("ridge_pressure_context", "ridge_pocket_context"): "pocket_minus_pressure",
+            ("ridge_dynamic_context", "ridge_dynamic_geometry_context"): "geometry_minus_dynamic",
         }.get((baseline, augmented), f"{augmented}_minus_{baseline}")
         results.append(
             {

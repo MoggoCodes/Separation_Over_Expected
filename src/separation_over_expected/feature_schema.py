@@ -42,3 +42,17 @@ PRESSURE_CONTEXT_FEATURES = (
     "qb_rusher_within_3yd_frame_share_pre_release",
     "qb_rusher_within_5yd_frame_share_pre_release",
 )
+
+ROUTE_GEOMETRY_FEATURES = (
+    "route_path_length_pre_release",
+    "route_chord_length_pre_release",
+    "route_directness_pre_release",
+    "route_depth_excursion_max_pre_release",
+    "route_depth_excursion_min_pre_release",
+    "route_lateral_excursion_max_pre_release",
+    "route_lateral_excursion_min_pre_release",
+    "route_cumulative_turn_degrees_pre_release",
+    "route_max_turn_degrees_pre_release",
+    "route_max_chord_deviation_pre_release",
+)
+ROUTE_SHAPE_COLUMN = "route_shape_points_pre_release"
